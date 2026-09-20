@@ -13,8 +13,8 @@ It grew out of a media-studies thesis on the açaí bowl and was generalised, so
 ## Install
 
 ```bash
-git clone https://github.com/StudioMonk-E/monke-bars.git
-cd monke-bars
+git clone https://github.com/StudioMonk-E/Monk-E-Bars.git
+cd Monk-E-Bars
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[app]"
 ```
