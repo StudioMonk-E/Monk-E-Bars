@@ -1,0 +1,107 @@
+# ---------------------------------------------------------------------------
+# Monk-E Bars study template. Copy it, change the words, and it targets a
+# different trade in a different language. Nothing below is wedding-specific or
+# Dutch-specific. The worked example here is fitness in Spanish, and
+# configs/verloofd.yaml is this same file carrying wedding words and Dutch.
+#
+#   monke-bars analyze --config configs/mystudy.yaml scrape.ndjson
+#
+# Two blocks carry the subject. `account_types` holds the words that mark out a
+# trade. `signals` holds the words that mark out a language. The rest is
+# machinery and can be left alone.
+# ---------------------------------------------------------------------------
+
+name: mystudy
+description: >
+  A sentence or two on what this corpus holds and what it is being read for.
+
+# The headline reading, written by its author. The tool generates the evidence
+# beneath and never writes this line. Left empty, the Report states plainly that
+# no reading is authored yet.
+claim: ""
+
+# --- what to keep ----------------------------------------------------------
+# An ISO code, a list of them, or null to keep every language. This also selects
+# the stopword list, from the 33 in monke_bars/stopwords.py, so a Spanish corpus
+# is stopworded in Spanish with no further setup.
+language: es
+since: 2025-01-01        # or null. Any date, down to the day.
+until: null
+
+tier_labels: [High, Medium, Low]
+query_hashtags: ["#tuseedtag"]     # the seed tags scraped; excluded from co-occurrence
+stopwords_extra: []                # topic filler that shows up in Top Words
+
+# --- who counts ------------------------------------------------------------
+# First match wins, in written order, so a specific type belongs above a general
+# one. These layer over generic defaults that already recognise a shop, a studio
+# and a magazine in several languages, so only the particulars of one trade need
+# naming here.
+#
+# This is the block that changes with the subject. Weddings: trouw, bruid,
+# fotograaf. Fitness: below. Beauty: salon, brows, lashes, aesthetics.
+account_types:
+  Fitness business:
+    # Matched as substrings against handle and display name together.
+    handle_words: [gym, fitness, coach, trainer, entrenador, pilates, crossfit,
+                   nutricion, nutrition, box, wellness]
+    # The second route in, for a business whose handle gives nothing away but
+    # whose posts carry trade tags. Two tags are required on more than half its
+    # posts, because a single tag is often a customer crediting a supplier.
+    hashtags: [personaltrainer, entrenadorpersonal, coachfitness, gymowner]
+    min_hashtag_hits: 2
+    min_post_share: 0.5
+  Person: default          # everything unmatched lands here
+
+# --- language confidence ---------------------------------------------------
+# Optional, and worth the trouble only where detection is unreliable: short
+# captions defeat it, and closely related languages defeat it badly. Plain
+# language filtering is usually enough, in which case delete this block.
+#
+# Each named signal scores a post 0 to 3, a point per test passed.
+signals:
+  Spanish:
+    detected_language: es
+    caption_words: [que, con, para, mi, los, las, una, muy, hoy, gracias]
+    min_caption_words: 2
+    hashtags: [entrenamiento, vidasana]
+    # A veto, and it costs no points. Reserve it for a language close enough to
+    # fool detection, the way Afrikaans fools Dutch. A word listed here must
+    # never occur in the target language.
+    exclude_words: [" tem ", " você ", " não "]      # Portuguese guard
+    min_exclude_words: 2
+
+min_signals:
+  Spanish: 2
+
+# --- the list it produces --------------------------------------------------
+include_types: [Person, Fitness business]
+min_engagement: 500        # on an account's strongest single post
+
+# Named shortcuts over the ordinary filters, each displayed with the rule it
+# applies. They stay shortcuts. A hashtag scrape carries no follower counts, so
+# "influencer" gets composed out of type and reach, and the tool never claims to
+# have detected one.
+audiences:
+  Influencers:
+    types: [Person]
+    min_engagement: 500
+  Industry accounts:
+    types: [Fitness business]
+  Press:
+    types: [News or media]
+  Private posts:
+    types: [Person]
+    max_engagement: 500
+
+# --- optional: a framework for the vocabulary ------------------------------
+# Only needed for reading how a subject is discussed. An outreach list requires
+# none of it, and while this stays empty the Themes view offers to model topics
+# from the vocabulary.
+themes: {}
+
+color:
+  n_colors: 5
+  max_posts: 200
+  resize: 200
+  timeout: 10.0

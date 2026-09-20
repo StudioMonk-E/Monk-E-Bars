@@ -1,0 +1,18 @@
+# Studio Monk-E, warm axis: gold on dark brown.
+#
+# This block is not decoration. Streamlit paints its own widgets (sliders,
+# selectboxes, the file uploader, the sidebar chrome) from these four values,
+# and injected CSS cannot reach all of them. It has to agree with
+# monke_bars/branding.py or the controls drift away from the rest of the page.
+[theme]
+primaryColor = "#e0b81f"            # ACCENT
+backgroundColor = "#362304"         # PAPER, the ground
+secondaryBackgroundColor = "#472e05" # PAPER_2, panels
+textColor = "#F5F0E8"               # INK
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true

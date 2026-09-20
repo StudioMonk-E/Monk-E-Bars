@@ -1,0 +1,94 @@
+# ---------------------------------------------------------------------------
+# Verloofd: Dutch and Flemish accounts that announced an engagement.
+#
+# An account study. The question it answers is which accounts to approach, so
+# the Accounts view carries the result and the vocabulary views sit behind it.
+#
+# Scraped with Zeeschuimer from #verloofd and #engaged.
+# ---------------------------------------------------------------------------
+name: verloofd
+description: Dutch-language engagement announcements, ranked by account.
+
+# Language detection alone is not enough here, so it is turned off as a filter
+# and moved into a signal instead. See `signals` below: a short English caption
+# such as "we're engaged" is routinely detected as Dutch, which filled an earlier
+# version of this list with American and British couples.
+language: null
+since: 2025-08-01
+
+tier_labels: [High, Medium, Low]
+query_hashtags: ["#verloofd", "#engaged"]
+
+# --- who counts ------------------------------------------------------------
+# First match wins, in the order written. Vendors are checked before couples so
+# a photographer is never mistaken for a participant.
+account_types:
+  Wedding business:
+    handle_words: [fotograf, photograph, bruid, bruids, trouw, wedding, bloem,
+                   floral, juwel, jewel, ring, planner, ceremonie, ambtenaar,
+                   catering, venue, locatie, styling, visagie, kapsel]
+    hashtags: [trouwfotograaf, weddingphotographer, weddingplanner, bruidsfotograaf,
+               trouwlocatie, bruidsmode, trouwringen, weddingvendor]
+    # A couple sometimes credits their own photographer, so one vendor hashtag
+    # is not enough on its own: two are needed, on more than half the posts.
+    min_hashtag_hits: 2
+    min_post_share: 0.5
+  News or media:
+    handle_words: [nieuws, news, magazine, teenmag, krant, telegraaf, hln, rtl,
+                   radio, showbizz, showbiz, media, podcast, omroep, journaal,
+                   mnm, 100pnl]
+  Engaged couple: default
+
+include_types: [Engaged couple, Wedding business]
+
+# Named shortcuts over the ordinary filters. Each states its own rule, because
+# this capture carries no follower counts and no branded-content flags, so
+# "influencer" gets composed out of type and reach. The tool detects neither.
+audiences:
+  Influencers:
+    types: [Engaged couple]
+    min_engagement: 500
+  Wedding vendors:
+    types: [Wedding business]
+  Press:
+    types: [News or media]
+  Private announcements:
+    types: [Engaged couple]
+    max_engagement: 500
+
+# --- how Dutch is it -------------------------------------------------------
+# A 0-to-3 score. Two everyday Dutch words are required before a caption counts,
+# which keeps short English captions out where langdetect lets them through.
+# The exclusions are Afrikaans, close enough to Dutch to defeat detection, and
+# sharing the #verloofd hashtag with South African accounts.
+signals:
+  Dutch:
+    detected_language: nl
+    caption_words: [verloofd, verloving, ze zei ja, zei ja, trouwen, bruiloft,
+                    aanzoek, mijn liefde, wij gaan trouwen, voor altijd, samen,
+                    onze, mijn, het is, wordt, heeft, gezegd, maar, ook, nog,
+                    heel, echt, even, altijd, liefste]
+    min_caption_words: 2
+    hashtags: [verloofd, verloving, wijgaantrouwen, aanstaandebruid, zezeija]
+    # Afrikaans only. Words that also exist in Dutch must never appear here:
+    # an earlier list held "gaan", "lekker" and "jou", and it vetoed genuine
+    # Dutch posts, including one reading "Wij gaan niet trouwen".
+    exclude_words: [" ek ", " baie ", " hierdie ", " julle ", " dankie ",
+                    " saam ", " sy's ", " 'n "]
+    min_exclude_words: 2
+
+min_signals:
+  Dutch: 2
+
+# Engagement announcements draw high like counts even from private accounts, so
+# this is set high to keep the list to accounts with genuine reach. Lower it to
+# around 300 to pick up micro-influencers.
+min_engagement: 500
+
+stopwords_extra: []
+themes: {}
+
+color:
+  n_colors: 5
+  max_posts: 200
+  resize: 200

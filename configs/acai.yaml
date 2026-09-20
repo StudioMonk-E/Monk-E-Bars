@@ -1,0 +1,158 @@
+# ---------------------------------------------------------------------------
+# Study: açaí bowls on Instagram / TikTok
+# The worked example that ships with Monk-E Bars. This is the same framework
+# used in the thesis, lifted out of the notebook so it can be re-run and reused.
+# ---------------------------------------------------------------------------
+
+name: acai
+description: >
+  Discourse of the "açaí bowl" as it circulates on visual social platforms,
+  read through four theoretical layers: coloniality, extractivism/nature,
+  branding/wellness, and platform vernacular.
+
+# Keep only posts detected as this language ("en"). Set to null to keep all.
+language: en
+
+# Engagement tiers, applied as equal thirds by rank (highest engagement first).
+tier_labels: [High, Medium, Low]
+
+# The seed hashtags used to build the corpus. They are excluded from the
+# hashtag co-occurrence count because, by construction, they appear everywhere.
+query_hashtags:
+  - "#acaibowl"
+  - "#açaíbowl"
+  - "#açaibowl"
+  - "#acaíbowl"
+  - "#acai"
+  - "#açaí"
+  - "#açai"
+  - "#acaí"
+
+# Caption noise on top of the built-in Snowball English stopwords: filler and
+# platform tics that are not representational.
+stopwords_extra:
+  - pls
+  - plz
+  - ty
+  - thx
+  - thanks
+  - thank
+  - haha
+  - lol
+  - lmao
+  - hehe
+  - omg
+  - yay
+  - etc
+  - u
+  - im
+  - ive
+  - id
+  - ya
+  - wanna
+  - gonna
+  - gotta
+  - one
+  - two
+  - three
+  - four
+  - five
+
+# Thematic lexicons, the heart of the study. Each layer is an observation-driven
+# grouping of the vocabulary seen repeating in the corpus; they are not claimed
+# to be exhaustive.
+themes:
+  Coloniality:
+    - brazil
+    - brazilian
+    - amazon
+    - amazonian
+    - rainforest
+    - forest
+    - indigenous
+    - tropical
+    - south
+    - america
+    - origin
+    - native
+    - exotic
+  "Extractivism / Nature":
+    - natural
+    - pure
+    - raw
+    - organic
+    - real
+    - wild
+    - fresh
+    - earth
+    - nature
+    - berry
+    - berries
+    - fruit
+    - fruits
+    - palm
+  "Branding / Wellness":
+    - healthy
+    - health
+    - wellness
+    - clean
+    - balanced
+    - fit
+    - fitness
+    - superfood
+    - antioxidant
+    - antioxidants
+    - nutrition
+    - nutritious
+    - energy
+    - boost
+    - protein
+    - vitamins
+    - vegan
+    - plantbased
+    - glutenfree
+    - dairyfree
+    - delicious
+    - yummy
+    - tasty
+    - amazing
+    - perfect
+    - favorite
+    - favourite
+    - breakfast
+    - snack
+    - dessert
+    - bowl
+    - smoothie
+    - recipe
+    - summer
+    - morning
+  "Platform Vernacular":
+    - follow
+    - share
+    - tag
+    - comment
+    - link
+    - bio
+    - friends
+    - check
+    - love
+    - loved
+    - new
+    - try
+    - tried
+    - post
+    - story
+    - reel
+    - video
+    - photo
+    - guys
+    - ladies
+    - community
+
+# Colour analysis settings.
+color:
+  n_colors: 5      # dominant colours per post
+  max_posts: 200   # cap on media downloads
+  resize: 200      # px longest side before clustering
+  timeout: 10.0

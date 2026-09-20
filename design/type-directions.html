@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monk-E Bars · Type directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=Instrument+Sans:wght@400;500;600&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Syne:wght@400;700;800&family=Martian+Mono:wght@400;500&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Familjen+Grotesk:wght@400;500;600&family=Darker+Grotesque:wght@700;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#F5F0E8; --panel:#EDE6DA; --hairline:#E2D9CA; --rule:#D3C6B2;
+  --ink-1:#12100F; --ink-2:#5A4E45; --ink-3:#6B5F57;
+  --accent:#1F6F6B; --accent-2:#A0521A;
+}
+*{box-sizing:border-box} html,body{margin:0;padding:0}
+body{background:var(--ground);color:var(--ink-1);font-size:16px;line-height:1.55;
+  font-family:'Instrument Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:48px 32px 110px}
+
+.pagehead{max-width:64ch}
+.pagehead h1{font-family:'Fraunces',serif;font-optical-sizing:auto;
+  font-variation-settings:'SOFT' 0,'WONK' 1;font-weight:900;font-size:52px;
+  line-height:1;letter-spacing:-.02em;margin:0}
+.pagehead p{color:var(--ink-2);margin:16px 0 0}
+.pagehead p b{color:var(--ink-1)}
+
+/* Each specimen is the same content in a different type system, so the
+   comparison is about the faces and not about the words. */
+.spec{margin:52px 0 0;border:1px solid var(--rule);background:var(--panel)}
+.spec .hd{display:flex;justify-content:space-between;gap:18px;align-items:baseline;
+  padding:15px 22px;border-bottom:1px solid var(--rule)}
+.spec .hd .nm{font-size:18px;font-weight:600}
+.spec .hd .stack{font-size:12px;color:var(--ink-3);text-align:right;line-height:1.5}
+.spec .body{padding:30px 22px 34px;background:var(--ground)}
+.verdict{padding:13px 22px;border-top:1px solid var(--rule);background:var(--panel);
+  color:var(--ink-2);font-size:13px}
+.verdict b{color:var(--ink-1);font-weight:600}
+
+/* Shared sample skeleton. Faces are set per direction below. */
+.eyebrow{color:var(--accent-2);margin:0 0 8px}
+.wordmark{margin:0;line-height:.95}
+.stand{color:var(--ink-2);margin:12px 0 0;max-width:52ch}
+.meta{color:var(--ink-3);margin:16px 0 0}
+.claim{margin:26px 0 0;max-width:26ch;border-left:2px solid var(--accent-2);padding-left:18px}
+.src{color:var(--ink-3);margin:9px 0 0}
+.datarow{margin:26px 0 0;border-top:1px solid var(--rule);padding:14px 0 0}
+.datarow .r{display:grid;grid-template-columns:92px 44px 1fr 56px;gap:11px;align-items:center;
+  padding:5px 0}
+.datarow .w{text-align:right}
+.datarow .bar{height:12px;background:var(--accent)}
+.sectag{color:var(--ink-3);margin:22px 0 0}
+
+/* ---------- Direction 1: Fraunces + Instrument Sans + Geist Mono ---------- */
+.d1{font-family:'Instrument Sans',sans-serif}
+.d1 .wordmark{font-family:'Fraunces',serif;font-optical-sizing:auto;
+  font-variation-settings:'SOFT' 0,'WONK' 1;font-weight:900;font-size:54px;letter-spacing:-.02em}
+.d1 .claim{font-family:'Fraunces',serif;font-variation-settings:'SOFT' 0,'WONK' 1;
+  font-weight:400;font-size:29px;line-height:1.22;letter-spacing:-.005em}
+.d1 .eyebrow{font-family:'Geist Mono',monospace;font-size:12px;letter-spacing:.06em}
+.d1 .meta,.d1 .src,.d1 .sectag{font-family:'Geist Mono',monospace;font-size:12px;letter-spacing:.02em}
+.d1 .datarow .g,.d1 .datarow .n{font-family:'Geist Mono',monospace;font-size:12px;color:var(--ink-3)}
+.d1 .stand{font-size:18px}
+
+/* ---------- Direction 2: Bricolage Grotesque + Instrument Sans ---------- */
+.d2{font-family:'Instrument Sans',sans-serif}
+.d2 .wordmark{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:56px;
+  letter-spacing:-.035em;font-variation-settings:'opsz' 96}
+.d2 .claim{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:30px;
+  line-height:1.14;letter-spacing:-.025em}
+.d2 .eyebrow{font-family:'Instrument Sans',sans-serif;font-weight:600;font-size:13px;
+  letter-spacing:.02em}
+.d2 .meta,.d2 .src,.d2 .sectag{font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--ink-3)}
+.d2 .datarow .g,.d2 .datarow .n{font-family:'Geist Mono',monospace;font-size:12px;color:var(--ink-3)}
+.d2 .stand{font-size:18px}
+
+/* ---------- Direction 3: Syne + Martian Mono ---------- */
+.d3{font-family:'Familjen Grotesk',sans-serif}
+.d3 .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:50px;letter-spacing:-.02em}
+.d3 .claim{font-family:'Syne',sans-serif;font-weight:700;font-size:27px;line-height:1.2}
+.d3 .eyebrow{font-family:'Martian Mono',monospace;font-size:10px;letter-spacing:0}
+.d3 .meta,.d3 .src,.d3 .sectag{font-family:'Martian Mono',monospace;font-size:10px;color:var(--ink-3)}
+.d3 .datarow .g,.d3 .datarow .n{font-family:'Martian Mono',monospace;font-size:10px;color:var(--ink-3)}
+.d3 .stand{font-size:17px}
+
+/* ---------- Direction 4: Newsreader, one family doing everything ---------- */
+.d4{font-family:'Newsreader',serif;font-optical-sizing:auto}
+.d4 .wordmark{font-family:'Newsreader',serif;font-weight:600;font-size:54px;letter-spacing:-.015em}
+.d4 .claim{font-family:'Newsreader',serif;font-weight:400;font-size:30px;line-height:1.24;
+  font-style:italic}
+.d4 .eyebrow{font-family:'Newsreader',serif;font-weight:600;font-size:14px;letter-spacing:.02em}
+.d4 .meta,.d4 .src,.d4 .sectag{font-family:'Geist Mono',monospace;font-size:12px;color:var(--ink-3)}
+.d4 .datarow .g,.d4 .datarow .n{font-family:'Geist Mono',monospace;font-size:12px;color:var(--ink-3)}
+.d4 .stand{font-size:19px}
+.d4 .datarow .w{font-family:'Newsreader',serif;font-size:18px}
+
+/* ---------- Direction 0: what is there now ---------- */
+.d0{font-family:'Inter',sans-serif}
+.d0 .wordmark{font-family:'Darker Grotesque',sans-serif;font-weight:900;font-size:58px;
+  letter-spacing:-.03em}
+.d0 .claim{font-family:'Darker Grotesque',sans-serif;font-weight:700;font-size:31px;
+  line-height:1.15;letter-spacing:-.015em}
+.d0 .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;
+  letter-spacing:.16em}
+.d0 .meta,.d0 .src,.d0 .sectag{font-family:'IBM Plex Mono',monospace;font-size:11px;
+  text-transform:uppercase;letter-spacing:.16em;color:var(--ink-3)}
+.d0 .datarow .g,.d0 .datarow .n{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-3)}
+.d0 .stand{font-size:18px}
+
+@media (max-width:760px){
+  .datarow .r{grid-template-columns:76px 38px 1fr 46px}
+  .pagehead h1{font-size:36px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="pagehead">
+    <h1>Type directions</h1>
+    <p>Same words, same cream ground, same teal and ochre. Only the faces change.
+      The current stack sits at the bottom for comparison. <b>Inter with tracked uppercase
+      mono labels and numbered rules is the most reproduced look in machine-made design</b>,
+      which is the thing to get away from, so three of the four options drop the tracked
+      caps entirely rather than only swapping one family for another.</p>
+  </div>
+
+  <!-- 1 -->
+  <div class="spec">
+    <div class="hd"><div class="nm">One · Archival editorial</div>
+      <div class="stack">Fraunces (wonk axis on) · Instrument Sans · Geist Mono</div></div>
+    <div class="body d1">
+      <div class="eyebrow">Studio Monk-E</div>
+      <h2 class="wordmark">Monk-E Bars</h2>
+      <div class="stand">Lexical, hashtag and colour analysis of scraped social posts.</div>
+      <div class="meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claim">The most engaged captions sell a product. The least engaged ones
+        describe fruit.</div>
+      <div class="src">Reading, authored · configs/acai.yaml</div>
+      <div class="sectag">Finding</div>
+      <div class="datarow">
+        <div class="r"><span class="w">keto</span><span class="g">13.73</span><span class="bar" style="width:100%"></span><span class="n">15/0</span></div>
+        <div class="r"><span class="w">majik</span><span class="g">6.41</span><span class="bar" style="width:47%"></span><span class="n">7/0</span></div>
+        <div class="r"><span class="w">pineapple</span><span class="g">5.49</span><span class="bar" style="width:40%"></span><span class="n">6/0</span></div>
+      </div>
+    </div>
+    <div class="verdict"><b>Reads as a journal, not an app.</b> Fraunces with the wonk axis has
+      genuine oddness in the italic-ish terminals, so it does not land on the generic
+      high-contrast serif. Suits a corpus instrument and prints well. Lowercase mono for figures
+      instead of tracked caps.</div>
+  </div>
+
+  <!-- 2 -->
+  <div class="spec">
+    <div class="hd"><div class="nm">Two · Contemporary, deliberately imperfect</div>
+      <div class="stack">Bricolage Grotesque · Instrument Sans · Geist Mono</div></div>
+    <div class="body d2">
+      <div class="eyebrow">Studio Monk-E</div>
+      <h2 class="wordmark">Monk-E Bars</h2>
+      <div class="stand">Lexical, hashtag and colour analysis of scraped social posts.</div>
+      <div class="meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claim">The most engaged captions sell a product. The least engaged ones
+        describe fruit.</div>
+      <div class="src">Reading, authored · configs/acai.yaml</div>
+      <div class="sectag">Finding</div>
+      <div class="datarow">
+        <div class="r"><span class="w">keto</span><span class="g">13.73</span><span class="bar" style="width:100%"></span><span class="n">15/0</span></div>
+        <div class="r"><span class="w">majik</span><span class="g">6.41</span><span class="bar" style="width:47%"></span><span class="n">7/0</span></div>
+        <div class="r"><span class="w">pineapple</span><span class="g">5.49</span><span class="bar" style="width:40%"></span><span class="n">6/0</span></div>
+      </div>
+    </div>
+    <div class="verdict"><b>Closest to the current silhouette but with character.</b> Bricolage is
+      drawn to be slightly awkward on purpose, so it keeps the tight grotesque headline without
+      the neutrality. Sentence-case labels rather than tracked caps.</div>
+  </div>
+
+  <!-- 3 -->
+  <div class="spec">
+    <div class="hd"><div class="nm">Three · Gallery</div>
+      <div class="stack">Syne · Familjen Grotesk · Martian Mono</div></div>
+    <div class="body d3">
+      <div class="eyebrow">Studio Monk-E</div>
+      <h2 class="wordmark">Monk-E Bars</h2>
+      <div class="stand">Lexical, hashtag and colour analysis of scraped social posts.</div>
+      <div class="meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claim">The most engaged captions sell a product. The least engaged ones
+        describe fruit.</div>
+      <div class="src">Reading, authored · configs/acai.yaml</div>
+      <div class="sectag">Finding</div>
+      <div class="datarow">
+        <div class="r"><span class="w">keto</span><span class="g">13.73</span><span class="bar" style="width:100%"></span><span class="n">15/0</span></div>
+        <div class="r"><span class="w">majik</span><span class="g">6.41</span><span class="bar" style="width:47%"></span><span class="n">7/0</span></div>
+        <div class="r"><span class="w">pineapple</span><span class="g">5.49</span><span class="bar" style="width:40%"></span><span class="n">6/0</span></div>
+      </div>
+    </div>
+    <div class="verdict"><b>Furthest from any default.</b> Syne comes out of French art-institution
+      work and Martian Mono is wide and unusual. Strong personality, and the risk is that it reads
+      as an exhibition identity rather than an instrument someone works in daily.</div>
+  </div>
+
+  <!-- 4 -->
+  <div class="spec">
+    <div class="hd"><div class="nm">Four · One family, set like a paper</div>
+      <div class="stack">Newsreader throughout · Geist Mono for figures</div></div>
+    <div class="body d4">
+      <div class="eyebrow">Studio Monk-E</div>
+      <h2 class="wordmark">Monk-E Bars</h2>
+      <div class="stand">Lexical, hashtag and colour analysis of scraped social posts.</div>
+      <div class="meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claim">The most engaged captions sell a product. The least engaged ones
+        describe fruit.</div>
+      <div class="src">Reading, authored · configs/acai.yaml</div>
+      <div class="sectag">Finding</div>
+      <div class="datarow">
+        <div class="r"><span class="w">keto</span><span class="g">13.73</span><span class="bar" style="width:100%"></span><span class="n">15/0</span></div>
+        <div class="r"><span class="w">majik</span><span class="g">6.41</span><span class="bar" style="width:47%"></span><span class="n">7/0</span></div>
+        <div class="r"><span class="w">pineapple</span><span class="g">5.49</span><span class="bar" style="width:40%"></span><span class="n">6/0</span></div>
+      </div>
+    </div>
+    <div class="verdict"><b>The academic option.</b> One serif doing headings, body and data
+      labels, with mono only for figures. Nobody builds dashboards this way, which is exactly why
+      it does not read as a dashboard. Weakest at dense tables.</div>
+  </div>
+
+  <!-- 0 -->
+  <div class="spec">
+    <div class="hd"><div class="nm">Current</div>
+      <div class="stack">Darker Grotesque · Inter · IBM Plex Mono, tracked caps</div></div>
+    <div class="body d0">
+      <div class="eyebrow">Studio Monk-E</div>
+      <h2 class="wordmark">Monk-E Bars</h2>
+      <div class="stand">Lexical, hashtag and colour analysis of scraped social posts.</div>
+      <div class="meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claim">The most engaged captions sell a product. The least engaged ones
+        describe fruit.</div>
+      <div class="src">Reading, authored · configs/acai.yaml</div>
+      <div class="sectag">Finding</div>
+      <div class="datarow">
+        <div class="r"><span class="w">keto</span><span class="g">13.73</span><span class="bar" style="width:100%"></span><span class="n">15/0</span></div>
+        <div class="r"><span class="w">majik</span><span class="g">6.41</span><span class="bar" style="width:47%"></span><span class="n">7/0</span></div>
+        <div class="r"><span class="w">pineapple</span><span class="g">5.49</span><span class="bar" style="width:40%"></span><span class="n">6/0</span></div>
+      </div>
+    </div>
+    <div class="verdict">Inter, a tight grotesque headline, and tracked uppercase mono labels.
+      Competent and extremely common.</div>
+  </div>
+
+</div>
+</body>
+</html>

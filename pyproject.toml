@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "monke-bars"
+version = "0.1.0"
+description = "Config-driven lexical, hashtag and colour analysis of social-media posts scraped with Zeeschuimer (Instagram + TikTok)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Gabriella Matos Nunes" }]
+keywords = ["social-media", "discourse-analysis", "instagram", "tiktok", "zeeschuimer", "digital-methods", "content-analysis"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Sociology",
+]
+
+dependencies = [
+    "pandas>=1.5",
+    "numpy>=1.23",
+    "nltk>=3.8",
+    "contractions>=0.1.73",
+    "langdetect>=1.0.9",
+    "matplotlib>=3.6",
+    "Pillow>=9.4",
+    "requests>=2.28",
+    "PyYAML>=6.0",
+    "scikit-learn>=1.2",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+app = ["streamlit>=1.28", "altair>=5.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+monke-bars = "monke_bars.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourname/monke-bars"
+Repository = "https://github.com/yourname/monke-bars"
+
+[tool.setuptools.packages.find]
+include = ["monke_bars*"]

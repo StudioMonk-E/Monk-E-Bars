@@ -1,0 +1,52 @@
+# ---------------------------------------------------------------------------
+# Generic study: no subject, no language, no framework.
+#
+# Any capture dropped on this runs everything that needs no prior knowledge:
+# top words, keyness, hashtags, colour, the corpus, and an account list with an
+# Excel export. Accounts get classified by the generic word lists in
+# monke_bars/accounts.py, which already recognise a shop as a business and a
+# magazine as press across several languages.
+#
+# What stays out of reach here is a trade. A wedding photographer and an açaí
+# franchise both come back as "Person" unless the handle happens to say shop or
+# studio. Naming a trade takes two lines: copy configs/template.yaml, put the
+# trade's words in `account_types`, and the same machinery finds them.
+# ---------------------------------------------------------------------------
+name: generic
+
+# Every language kept by default, since a dropped file could hold any of them.
+# The Settings panel lists what the file actually contains, with counts, and
+# stopwords follow whichever languages survive the filter.
+language: null
+since: null
+until: null
+
+tier_labels: [High, Medium, Low]
+query_hashtags: []    # seed tags to exclude from co-occurrence
+stopwords_extra: []   # topic filler that shows up in Top Words
+themes: {}            # empty on purpose: the Themes view models topics from the data
+
+# No `account_types` block, so the generic defaults apply: Brand or business,
+# News or media, and Person for everything else.
+include_types: []     # empty keeps every type; narrow it in the Accounts view
+min_engagement: 0
+
+# Shortcuts over the ordinary filters, each displayed with the rule it applies.
+# These hold on any corpus because they combine the generic types with reach,
+# and neither depends on knowing the subject.
+audiences:
+  Influencers:
+    types: [Person]
+    min_engagement: 500
+  Brands:
+    types: [Brand or business]
+  Press:
+    types: [News or media]
+  Private posts:
+    types: [Person]
+    max_engagement: 500
+
+color:
+  n_colors: 5
+  max_posts: 200
+  resize: 200

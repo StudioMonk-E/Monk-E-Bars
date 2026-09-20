@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Data & outputs (keep raw scrapes and generated files out of git)
+*.ndjson
+data/
+media_cache/
+outputs/
+runs/
+*.xlsx
+!examples/**/*.xlsx
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# NLTK downloads
+nltk_data/
+
+.pytest_cache/
+
+# Editor and tooling state. These carry local filesystem paths and belong to a
+# machine, never to the repository.
+.claude/
+design/canvas/

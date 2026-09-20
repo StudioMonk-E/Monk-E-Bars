@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monk-E Bars · Accent directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Darker+Grotesque:wght@700;900&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* What is held from the family, and what is not.
+   HELD: warm near-black ground and surfaces, mid-brown rules, the text ramp,
+   Darker Grotesque / Inter / IBM Plex Mono, the major-third scale, zero radius,
+   hard rules over eyebrows, mono labels.
+   CHANGED: the accent pair only. Culinar-E keeps cobalt and burnt orange; a
+   sibling product should not read as the same application. */
+:root{
+  --bg-deep:#1A120E; --bg-surface:#231C18; --bg-elevated:#2E2520;
+  --mid-brown:#3D2B1F;
+  --text-primary:#F0F2F5; --text-secondary:#A89E97; --text-muted:#6B5F57;
+  --font-display:'Darker Grotesque',sans-serif;
+  --font-body:'Inter',-apple-system,sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}
+/* Each option sets only these four, plus the diverging tier trio. */
+.opt-0{--a1:#2D5BFF;--a2:#C4582A;--a1l:#4A9EFF;--a2l:#E8845A;
+       --t-hi:#2D5BFF;--t-mid:#4A9EFF;--t-lo:#E8845A}
+.opt-1{--a1:#E0A02E;--a2:#3FA6A0;--a1l:#F0B94E;--a2l:#5FC4BE;
+       --t-hi:#E0A02E;--t-mid:#A89E97;--t-lo:#3FA6A0}
+.opt-2{--a1:#8B6FE8;--a2:#E0A02E;--a1l:#A78BFF;--a2l:#F0B94E;
+       --t-hi:#8B6FE8;--t-mid:#A89E97;--t-lo:#E0A02E}
+.opt-3{--a1:#F2C14E;--a2:#3FA6A0;--a1l:#F2C14E;--a2l:#5FC4BE;
+       --t-hi:#F2C14E;--t-mid:#C98A2B;--t-lo:#8A5A1A}
+
+*{box-sizing:border-box} html,body{margin:0;padding:0}
+body{background:var(--bg-deep);color:var(--text-primary);font-family:var(--font-body);
+  font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1060px;margin:0 auto;padding:48px 32px 96px}
+.mono-label{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.16em;font-size:11px}
+h1{font-family:var(--font-display);font-weight:900;font-size:49px;letter-spacing:-.03em;
+  line-height:.95;margin:8px 0 0}
+.lede{color:var(--text-secondary);max-width:66ch;margin:14px 0 0}
+
+.opt{margin:56px 0 0;border:1px solid var(--mid-brown);background:var(--bg-surface)}
+.opt > .hd{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+  padding:16px 22px;border-bottom:1px solid var(--mid-brown)}
+.opt .nm{font-family:var(--font-display);font-weight:700;font-size:25px;letter-spacing:-.015em}
+.opt .verdict{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:.16em;color:var(--text-muted);text-align:right}
+.body{padding:26px 22px 30px}
+
+.swatches{display:flex;gap:0;margin:0 0 26px;border:1px solid var(--mid-brown)}
+.sw{flex:1;height:56px;display:flex;align-items:flex-end;padding:6px 8px;
+  font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:#12100F}
+
+/* Masthead sample */
+.samp-eyebrow{color:var(--a2l)}
+.samp-title{font-family:var(--font-display);font-weight:900;font-size:39px;
+  letter-spacing:-.03em;line-height:.95;margin:6px 0 0}
+.samp-meta{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--text-muted);margin:10px 0 0}
+
+/* Claim + evidence heading, to check the authored / generated split still reads */
+.claimbox{border-left:2px solid var(--a2);padding:0 0 0 18px;margin:26px 0 0}
+.claimbox .q{font-family:var(--font-display);font-weight:700;font-size:25px;
+  line-height:1.15;letter-spacing:-.015em;max-width:30ch}
+.claimbox .src{color:var(--text-muted);font-family:var(--font-mono);font-size:10px;
+  text-transform:uppercase;letter-spacing:.16em;margin:9px 0 0}
+.evhead{color:var(--a1l);font-family:var(--font-mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:.16em;margin:22px 0 0;padding:0 0 8px;border-bottom:1px solid var(--mid-brown)}
+
+/* Opposed keyness, the signature element */
+.oppose{display:grid;grid-template-columns:1fr 1px 1fr;margin:24px 0 0}
+.spine{background:var(--mid-brown)}
+.side{padding:0 18px}
+.side .cap{color:var(--text-muted);font-family:var(--font-mono);font-size:10px;
+  text-transform:uppercase;letter-spacing:.16em;margin:0 0 12px}
+.row{display:grid;align-items:center;gap:9px;margin:0 0 7px}
+.left .row{grid-template-columns:82px 36px 1fr}
+.right .row{grid-template-columns:1fr 36px 82px}
+.word{font-size:15px;white-space:nowrap}
+.left .word{text-align:right}
+.g2{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);text-align:center}
+.bar{height:12px}
+.left .bar{justify-self:end;background:var(--a1)}
+.right .bar{justify-self:start;background:var(--a2)}
+
+/* Tier tracks */
+.themes{margin:26px 0 0;border-top:1px solid var(--mid-brown);padding:18px 0 0}
+.theme{padding:9px 0}
+.theme .nm2{display:flex;justify-content:space-between;font-size:14px;margin:0 0 7px}
+.theme .nm2 span{font-family:var(--font-mono);font-size:10px;color:var(--text-muted)}
+.track{display:grid;grid-template-columns:1fr 112px;gap:12px;align-items:center}
+.segs{display:flex;gap:5px}
+.seg{height:13px}
+.lab{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);
+  white-space:nowrap;text-align:right}
+.legend{display:flex;gap:18px;margin:14px 0 0}
+.legend span{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:.16em;color:var(--text-secondary)}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px}
+
+.btnrow{display:flex;gap:10px;margin:24px 0 0;align-items:center}
+.btn{background:var(--a1);color:#12100F;border:0;padding:10px 18px;font-family:var(--font-mono);
+  font-size:10px;text-transform:uppercase;letter-spacing:.16em;font-weight:500;cursor:pointer}
+.btn.ghost{background:none;color:var(--a1l);border:1px solid var(--mid-brown)}
+.contrast{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin:18px 0 0}
+@media (max-width:800px){.oppose{grid-template-columns:1fr}.spine{display:none}.side{padding:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mono-label" style="color:#E8845A">Studio Monk-E</div>
+  <h1>Accent directions</h1>
+  <p class="lede">
+    The ground, the type stack, the spacing scale, the mono label layer, the zero radius and the
+    hard rules are held from the family in every option below. Only the accent pair changes, which
+    is what separates a sibling product from a copy of Culinar-E. Each option is shown on the
+    signature element so the choice is made in context.
+  </p>
+
+  <!-- 0 -->
+  <div class="opt opt-0">
+    <div class="hd">
+      <div><div class="mono-label" style="color:var(--text-muted)">Current</div>
+        <div class="nm">Cobalt and burnt orange</div></div>
+      <div class="verdict">Culinar-E's own pair<br>reads as the same application</div>
+    </div>
+    <div class="body">
+      <div class="swatches">
+        <div class="sw" style="background:#2D5BFF;color:#fff">#2D5BFF</div>
+        <div class="sw" style="background:#4A9EFF">#4A9EFF</div>
+        <div class="sw" style="background:#C4582A;color:#fff">#C4582A</div>
+        <div class="sw" style="background:#E8845A">#E8845A</div>
+      </div>
+      <div class="mono-label samp-eyebrow">Studio Monk-E</div>
+      <div class="samp-title">Monk-E Bars</div>
+      <div class="samp-meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claimbox"><div class="q">The most engaged captions sell a product.</div>
+        <div class="src">Reading · authored</div></div>
+      <div class="evhead">Generated from the corpus</div>
+      <div class="oppose">
+        <div class="side left">
+          <div class="cap">High engagement</div>
+          <div class="row"><span class="word">keto</span><span class="g2">13.73</span><span class="bar" style="width:100%"></span></div>
+          <div class="row"><span class="word">blue</span><span class="g2">7.47</span><span class="bar" style="width:54%"></span></div>
+          <div class="row"><span class="word">majik</span><span class="g2">6.41</span><span class="bar" style="width:47%"></span></div>
+          <div class="row"><span class="word">pineapple</span><span class="g2">5.49</span><span class="bar" style="width:40%"></span></div>
+        </div>
+        <div class="spine"></div>
+        <div class="side right">
+          <div class="cap">Low engagement</div>
+          <div class="row"><span class="bar" style="width:100%"></span><span class="g2">17.83</span><span class="word">packed</span></div>
+          <div class="row"><span class="bar" style="width:90%"></span><span class="g2">16.01</span><span class="word">fruits</span></div>
+          <div class="row"><span class="bar" style="width:74%"></span><span class="g2">13.17</span><span class="word">perfect</span></div>
+          <div class="row"><span class="bar" style="width:56%"></span><span class="g2">10.02</span><span class="word">freshness</span></div>
+        </div>
+      </div>
+      <div class="themes">
+        <div class="theme"><div class="nm2"><b>Coloniality</b><span>15 hits</span></div>
+          <div class="track"><div class="segs">
+            <span class="seg" style="width:5.6%;background:var(--t-hi)"></span>
+            <span class="seg" style="width:4.6%;background:var(--t-mid)"></span>
+            <span class="seg" style="width:5.6%;background:var(--t-lo)"></span></div>
+            <span class="lab">0.28 / 0.23 / 0.28</span></div></div>
+        <div class="theme"><div class="nm2"><b>Branding / Wellness</b><span>696 hits</span></div>
+          <div class="track"><div class="segs">
+            <span class="seg" style="width:66.5%;background:var(--t-hi)"></span>
+            <span class="seg" style="width:89.4%;background:var(--t-mid)"></span>
+            <span class="seg" style="width:98.2%;background:var(--t-lo)"></span></div>
+            <span class="lab">9.98 / 13.41 / 14.73</span></div></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--t-hi)"></i>High</span>
+        <span><i style="background:var(--t-mid)"></i>Medium</span>
+        <span><i style="background:var(--t-lo)"></i>Low</span></div>
+      <div class="btnrow"><button class="btn">Run analysis</button>
+        <button class="btn ghost">Export tables</button></div>
+      <div class="contrast">Accents measure 3.56 and 4.20 on the ground. Small text needs the lightened pair.</div>
+    </div>
+  </div>
+
+  <!-- 1 -->
+  <div class="opt opt-1">
+    <div class="hd">
+      <div><div class="mono-label" style="color:var(--a1l)">Option one</div>
+        <div class="nm">Ochre and teal</div></div>
+      <div class="verdict">Warm archival, clearly not Culinar-E<br>tiers diverge from a muted middle</div>
+    </div>
+    <div class="body">
+      <div class="swatches">
+        <div class="sw" style="background:#E0A02E">#E0A02E</div>
+        <div class="sw" style="background:#F0B94E">#F0B94E</div>
+        <div class="sw" style="background:#3FA6A0">#3FA6A0</div>
+        <div class="sw" style="background:#5FC4BE">#5FC4BE</div>
+      </div>
+      <div class="mono-label samp-eyebrow">Studio Monk-E</div>
+      <div class="samp-title">Monk-E Bars</div>
+      <div class="samp-meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claimbox"><div class="q">The most engaged captions sell a product.</div>
+        <div class="src">Reading · authored</div></div>
+      <div class="evhead">Generated from the corpus</div>
+      <div class="oppose">
+        <div class="side left">
+          <div class="cap">High engagement</div>
+          <div class="row"><span class="word">keto</span><span class="g2">13.73</span><span class="bar" style="width:100%"></span></div>
+          <div class="row"><span class="word">blue</span><span class="g2">7.47</span><span class="bar" style="width:54%"></span></div>
+          <div class="row"><span class="word">majik</span><span class="g2">6.41</span><span class="bar" style="width:47%"></span></div>
+          <div class="row"><span class="word">pineapple</span><span class="g2">5.49</span><span class="bar" style="width:40%"></span></div>
+        </div>
+        <div class="spine"></div>
+        <div class="side right">
+          <div class="cap">Low engagement</div>
+          <div class="row"><span class="bar" style="width:100%"></span><span class="g2">17.83</span><span class="word">packed</span></div>
+          <div class="row"><span class="bar" style="width:90%"></span><span class="g2">16.01</span><span class="word">fruits</span></div>
+          <div class="row"><span class="bar" style="width:74%"></span><span class="g2">13.17</span><span class="word">perfect</span></div>
+          <div class="row"><span class="bar" style="width:56%"></span><span class="g2">10.02</span><span class="word">freshness</span></div>
+        </div>
+      </div>
+      <div class="themes">
+        <div class="theme"><div class="nm2"><b>Coloniality</b><span>15 hits</span></div>
+          <div class="track"><div class="segs">
+            <span class="seg" style="width:5.6%;background:var(--t-hi)"></span>
+            <span class="seg" style="width:4.6%;background:var(--t-mid)"></span>
+            <span class="seg" style="width:5.6%;background:var(--t-lo)"></span></div>
+            <span class="lab">0.28 / 0.23 / 0.28</span></div></div>
+        <div class="theme"><div class="nm2"><b>Branding / Wellness</b><span>696 hits</span></div>
+          <div class="track"><div class="segs">
+            <span class="seg" style="width:66.5%;background:var(--t-hi)"></span>
+            <span class="seg" style="width:89.4%;background:var(--t-mid)"></span>
+            <span class="seg" style="width:98.2%;background:var(--t-lo)"></span></div>
+            <span class="lab">9.98 / 13.41 / 14.73</span></div></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--t-hi)"></i>High</span>
+        <span><i style="background:var(--t-mid)"></i>Medium</span>
+        <span><i style="background:var(--t-lo)"></i>Low</span></div>
+      <div class="btnrow"><button class="btn">Run analysis</button>
+        <button class="btn ghost">Export tables</button></div>
+      <div class="contrast">Accents measure 8.13 and 6.31 on the ground. Both clear small text without a lightened pair.</div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="opt opt-2">
+    <div class="hd">
+      <div><div class="mono-label" style="color:var(--a1l)">Option two</div>
+        <div class="nm">Violet and ochre</div></div>
+      <div class="verdict">Furthest from the family<br>reads more software than archive</div>
+    </div>
+    <div class="body">
+      <div class="swatches">
+        <div class="sw" style="background:#8B6FE8;color:#fff">#8B6FE8</div>
+        <div class="sw" style="background:#A78BFF">#A78BFF</div>
+        <div class="sw" style="background:#E0A02E">#E0A02E</div>
+        <div class="sw" style="background:#F0B94E">#F0B94E</div>
+      </div>
+      <div class="mono-label samp-eyebrow">Studio Monk-E</div>
+      <div class="samp-title">Monk-E Bars</div>
+      <div class="samp-meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claimbox"><div class="q">The most engaged captions sell a product.</div>
+        <div class="src">Reading · authored</div></div>
+      <div class="evhead">Generated from the corpus</div>
+      <div class="oppose">
+        <div class="side left">
+          <div class="cap">High engagement</div>
+          <div class="row"><span class="word">keto</span><span class="g2">13.73</span><span class="bar" style="width:100%"></span></div>
+          <div class="row"><span class="word">blue</span><span class="g2">7.47</span><span class="bar" style="width:54%"></span></div>
+          <div class="row"><span class="word">majik</span><span class="g2">6.41</span><span class="bar" style="width:47%"></span></div>
+          <div class="row"><span class="word">pineapple</span><span class="g2">5.49</span><span class="bar" style="width:40%"></span></div>
+        </div>
+        <div class="spine"></div>
+        <div class="side right">
+          <div class="cap">Low engagement</div>
+          <div class="row"><span class="bar" style="width:100%"></span><span class="g2">17.83</span><span class="word">packed</span></div>
+          <div class="row"><span class="bar" style="width:90%"></span><span class="g2">16.01</span><span class="word">fruits</span></div>
+          <div class="row"><span class="bar" style="width:74%"></span><span class="g2">13.17</span><span class="word">perfect</span></div>
+          <div class="row"><span class="bar" style="width:56%"></span><span class="g2">10.02</span><span class="word">freshness</span></div>
+        </div>
+      </div>
+      <div class="themes">
+        <div class="theme"><div class="nm2"><b>Coloniality</b><span>15 hits</span></div>
+          <div class="track"><div class="segs">
+            <span class="seg" style="width:5.6%;background:var(--t-hi)"></span>
+            <span class="seg" style="width:4.6%;background:var(--t-mid)"></span>
+            <span class="seg" style="width:5.6%;background:var(--t-lo)"></span></div>
+            <span class="lab">0.28 / 0.23 / 0.28</span></div></div>
+        <div class="theme"><div class="nm2"><b>Branding / Wellness</b><span>696 hits</span></div>
+          <div class="track"><div class="segs">
+            <span class="seg" style="width:66.5%;background:var(--t-hi)"></span>
+            <span class="seg" style="width:89.4%;background:var(--t-mid)"></span>
+            <span class="seg" style="width:98.2%;background:var(--t-lo)"></span></div>
+            <span class="lab">9.98 / 13.41 / 14.73</span></div></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--t-hi)"></i>High</span>
+        <span><i style="background:var(--t-mid)"></i>Medium</span>
+        <span><i style="background:var(--t-lo)"></i>Low</span></div>
+      <div class="btnrow"><button class="btn">Run analysis</button>
+        <button class="btn ghost">Export tables</button></div>
+      <div class="contrast">Accents measure 4.87 and 8.13 on the ground. Both clear small text.</div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="opt opt-3">
+    <div class="hd">
+      <div><div class="mono-label" style="color:var(--a1l)">Option three</div>
+        <div class="nm">Gold ramp and teal</div></div>
+      <div class="verdict">Ordered tiers get an ordered scale<br>strictest reading of the data</div>
+    </div>
+    <div class="body">
+      <div class="swatches">
+        <div class="sw" style="background:#F2C14E">#F2C14E</div>
+        <div class="sw" style="background:#C98A2B">#C98A2B</div>
+        <div class="sw" style="background:#8A5A1A;color:#fff">#8A5A1A</div>
+        <div class="sw" style="background:#3FA6A0">#3FA6A0</div>
+      </div>
+      <div class="mono-label samp-eyebrow">Studio Monk-E</div>
+      <div class="samp-title">Monk-E Bars</div>
+      <div class="samp-meta">Açaí bowl · Instagram · 203 posts</div>
+      <div class="claimbox"><div class="q">The most engaged captions sell a product.</div>
+        <div class="src">Reading · authored</div></div>
+      <div class="evhead">Generated from the corpus</div>
+      <div class="oppose">
+        <div class="side left">
+          <div class="cap">High engagement</div>
+          <div class="row"><span class="word">keto</span><span class="g2">13.73</span><span class="bar" style="width:100%"></span></div>
+          <div class="row"><span class="word">blue</span><span class="g2">7.47</span><span class="bar" style="width:54%"></span></div>
+          <div class="row"><span class="word">majik</span><span class="g2">6.41</span><span class="bar" style="width:47%"></span></div>
+          <div class="row"><span class="word">pineapple</span><span class="g2">5.49</span><span class="bar" style="width:40%"></span></div>
+        </div>
+        <div class="spine"></div>
+        <div class="side right">
+          <div class="cap">Low engagement</div>
+          <div class="row"><span class="bar" style="width:100%"></span><span class="g2">17.83</span><span class="word">packed</span></div>
+          <div class="row"><span class="bar" style="width:90%"></span><span class="g2">16.01</span><span class="word">fruits</span></div>
+          <div class="row"><span class="bar" style="width:74%"></span><span class="g2">13.17</span><span class="word">perfect</span></div>
+          <div class="row"><span class="bar" style="width:56%"></span><span class="g2">10.02</span><span class="word">freshness</span></div>
+        </div>
+      </div>
+      <div class="themes">
+        <div class="theme"><div class="nm2"><b>Coloniality</b><span>15 hits</span></div>
+          <div class="track"><div class="segs">
+            <span class="seg" style="width:5.6%;background:var(--t-hi)"></span>
+            <span class="seg" style="width:4.6%;background:var(--t-mid)"></span>
+            <span class="seg" style="width:5.6%;background:var(--t-lo)"></span></div>
+            <span class="lab">0.28 / 0.23 / 0.28</span></div></div>
+        <div class="theme"><div class="nm2"><b>Branding / Wellness</b><span>696 hits</span></div>
+          <div class="track"><div class="segs">
+            <span class="seg" style="width:66.5%;background:var(--t-hi)"></span>
+            <span class="seg" style="width:89.4%;background:var(--t-mid)"></span>
+            <span class="seg" style="width:98.2%;background:var(--t-lo)"></span></div>
+            <span class="lab">9.98 / 13.41 / 14.73</span></div></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--t-hi)"></i>High</span>
+        <span><i style="background:var(--t-mid)"></i>Medium</span>
+        <span><i style="background:var(--t-lo)"></i>Low</span></div>
+      <div class="btnrow"><button class="btn">Run analysis</button>
+        <button class="btn ghost">Export tables</button></div>
+      <div class="contrast">Gold ramp descends in brightness with the tier. The darkest step measures 3.0 on the ground, so it carries fills only, never text.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

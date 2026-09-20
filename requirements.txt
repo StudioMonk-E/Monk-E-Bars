@@ -1,0 +1,19 @@
+# Core analysis
+pandas>=1.5
+numpy>=1.23
+nltk>=3.8
+contractions>=0.1.73
+langdetect>=1.0.9
+scikit-learn>=1.2
+
+# Colour analysis + media
+Pillow>=9.4
+requests>=2.28
+
+# Charts / config
+matplotlib>=3.6
+PyYAML>=6.0
+
+# Dashboard (optional; install with: pip install -e ".[app]")
+streamlit>=1.28
+altair>=5.0
