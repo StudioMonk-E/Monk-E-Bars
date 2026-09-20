@@ -288,7 +288,7 @@ if not go:
 # missed, every filter change re-ran language detection, and the panel appeared
 # to hang. The fingerprint is stable across reruns because it comes from the
 # bytes rather than from where they happen to sit on disk.
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="Reading captions and detecting languages")
 def prepare(fp: str, tier_labels, max_posts, _paths, _mapping):
     """Parse, cap and build the corpus once per uploaded capture.
 
@@ -307,9 +307,8 @@ def prepare(fp: str, tier_labels, max_posts, _paths, _mapping):
 
 
 try:
-    with st.spinner("Reading captions and detecting languages"):
-        full_corpus, source_label, raw_count, was_capped = prepare(
-            fingerprint_, tuple(config.tier_labels), MAX_POSTS, paths, mapping)
+    full_corpus, source_label, raw_count, was_capped = prepare(
+        fingerprint_, tuple(config.tier_labels), MAX_POSTS, paths, mapping)
 except ValueError as exc:
     st.error(str(exc))
     st.stop()
@@ -332,6 +331,8 @@ branding.section(st, "Settings", "the corpus is read once; these filter it")
 
 lang_table = language_counts(full_corpus)
 present = list(lang_table["Language"])
+lang_labels = {row.Language: f"{findings._lang_name(row.Language)} ({int(row.Posts)})"
+               for row in lang_table.itertuples()}
 study_langs = ([config.language] if isinstance(config.language, str)
                else list(config.language or []))
 preset = [l for l in study_langs if l in present] or present
@@ -342,7 +343,7 @@ with s1:
         "Languages",
         options=present,
         default=preset,
-        format_func=lambda c: f"{findings._lang_name(c)} ({int(lang_table.loc[lang_table['Language'] == c, 'Posts'].iloc[0])})",
+        format_func=lambda c: lang_labels.get(c, c),
         help="Only the languages actually detected in this capture are offered.",
     )
 
@@ -372,9 +373,21 @@ if corpus.empty:
     st.error("Nothing is left after these filters. Widen the languages or the dates.")
     st.stop()
 
-results = lexical.analyze(corpus, config)
+# Keyed on the filter selection, so returning to a previous set of languages or
+# dates costs nothing. Tokenising has to follow the selection rather than precede
+# it, because the stopword list is chosen from the languages that survive: tokens
+# built against every language and then filtered would differ from tokens built
+# against the languages actually kept.
+@st.cache_data(show_spinner="Reading the corpus")
+def analyse(fp: str, selection, study: str, raw: int, _corpus, _config):
+    out = lexical.analyze(_corpus, _config)
+    return out, findings.generate(out["corpus"], _config, raw_count=raw)
+
+
+_selection = (tuple(sorted(langs or [])), str(since_val), str(until_val), len(corpus))
+results, generated = analyse(fingerprint_, _selection, config.name, raw_count,
+                             corpus, config)
 corpus_tok = results["corpus"]
-generated = findings.generate(corpus_tok, config, raw_count=raw_count)
 
 # An engagement score of zero everywhere means the tiers are meaningless. Say so
 # so three tiers stop looking like a finding.
@@ -559,8 +572,11 @@ with view_report:
 with view_accounts:
     branding.section(st, "Accounts", "one row per account, ranked by its strongest post")
 
-    with st.spinner("Rolling up accounts"):
-        all_accounts = accounts_mod.build_accounts(corpus_tok, config)
+    @st.cache_data(show_spinner="Rolling up accounts")
+    def _accounts(fp: str, selection, study: str, _corpus, _config):
+        return accounts_mod.build_accounts(_corpus, _config)
+
+    all_accounts = _accounts(fingerprint_, _selection, config.name, corpus_tok, config)
 
     if all_accounts.empty:
         st.warning("No accounts could be identified in this corpus.")
