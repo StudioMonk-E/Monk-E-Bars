@@ -14,6 +14,7 @@ corpus gets handled: the tables, the controls, the exports.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 import tempfile
@@ -67,15 +68,34 @@ ACCEPTED = ["ndjson", "jsonl", "json", "csv", "tsv", "xlsx", "xls"]
 
 # --- helpers ------------------------------------------------------------
 
-def spill(uploads) -> list[str]:
-    """Write uploads to disk so detection and the adapters can read real files."""
-    paths = []
-    tmp = tempfile.mkdtemp(prefix="monke-bars-")
+def fingerprint(uploads) -> str:
+    """A stable id for a set of uploads, taken from their contents.
+
+    Streamlit hands back the same bytes on every rerun but nothing that
+    identifies them, so anything cached against an upload needs an id derived
+    from the data itself.
+    """
+    h = hashlib.sha1()
     for up in uploads:
-        p = os.path.join(tmp, up.name)
-        with open(p, "wb") as fh:
+        h.update(up.name.encode("utf-8"))
+        h.update(up.getvalue())
+    return h.hexdigest()[:16]
+
+
+@st.cache_data(show_spinner=False)
+def spill(fp: str, _uploads) -> list[str]:
+    """Write uploads to disk so detection and the adapters can read real files.
+
+    Cached on the fingerprint, so one capture lands in one directory and keeps
+    the same paths for as long as it is being worked on.
+    """
+    paths = []
+    tmp = tempfile.mkdtemp(prefix=f"monke-bars-{fp}-")
+    for up in _uploads:
+        path = os.path.join(tmp, up.name)
+        with open(path, "wb") as fh:
             fh.write(up.getvalue())
-        paths.append(p)
+        paths.append(path)
     return paths
 
 
@@ -199,7 +219,8 @@ if not uploads:
 
 # --- what was dropped ---------------------------------------------------
 
-paths = spill(uploads)
+fingerprint_ = fingerprint(uploads)
+paths = spill(fingerprint_, uploads)
 detections = [(p, detect(p)) for p in paths]
 
 branding.header(st)
@@ -261,34 +282,44 @@ if not go:
 
 # --- run ----------------------------------------------------------------
 
+# Keyed on what was uploaded, so a filter change reuses the work. Streamlit
+# reruns this script on every interaction, and an earlier version keyed the cache
+# on temporary file paths that `spill` regenerated each time. Every cache lookup
+# missed, every filter change re-ran language detection, and the panel appeared
+# to hang. The fingerprint is stable across reruns because it comes from the
+# bytes rather than from where they happen to sit on disk.
+@st.cache_data(show_spinner=False)
+def prepare(fp: str, tier_labels, max_posts, _paths, _mapping):
+    """Parse, cap and build the corpus once per uploaded capture.
+
+    Arguments prefixed with an underscore are excluded from the cache key by
+    Streamlit, which is what lets the heavy objects ride along without being
+    hashed on every rerun.
+    """
+    posts, label = load_auto(_paths, mapping=_mapping or None)
+    raw_count = len(posts)
+    capped = False
+    if max_posts and raw_count > max_posts:
+        posts = sorted(posts, key=lambda p: p.engagement_score, reverse=True)[:max_posts]
+        capped = True
+    corpus = build_corpus(posts, language=None, tier_labels=list(tier_labels))
+    return corpus, label, raw_count, capped
+
+
 try:
-    posts, source_label = load_auto(paths, mapping=mapping or None)
+    with st.spinner("Reading captions and detecting languages"):
+        full_corpus, source_label, raw_count, was_capped = prepare(
+            fingerprint_, tuple(config.tier_labels), MAX_POSTS, paths, mapping)
 except ValueError as exc:
     st.error(str(exc))
     st.stop()
 
-if not posts:
-    st.error("No posts were parsed out of these files.")
-    st.stop()
-
-if MAX_POSTS and len(posts) > MAX_POSTS:
+if was_capped:
     st.warning(
-        f"This instance reads the first {MAX_POSTS} posts of a capture, and "
-        f"{len(posts)} were supplied. Language detection is the limit. "
+        f"This instance reads the {MAX_POSTS} strongest posts of a capture, and "
+        f"{raw_count} were supplied. Language detection is the limit. "
         f"Running the tool locally removes the cap."
     )
-    posts = sorted(posts, key=lambda p: p.engagement_score, reverse=True)[:MAX_POSTS]
-
-# Detection is the slow step, so the corpus is built once keeping everything, and
-# the settings below filter it. Rebuilding on every control change would make the
-# panel unusable on a corpus of any size.
-@st.cache_data(show_spinner=False)
-def build_full(paths_key, tier_labels):
-    return build_corpus(posts, language=None, tier_labels=list(tier_labels))
-
-
-with st.spinner("Reading captions and detecting languages"):
-    full_corpus = build_full(tuple(paths), tuple(config.tier_labels))
 
 if full_corpus.empty:
     st.error("No posts survived deduplication.")
@@ -343,7 +374,7 @@ if corpus.empty:
 
 results = lexical.analyze(corpus, config)
 corpus_tok = results["corpus"]
-generated = findings.generate(corpus_tok, config, raw_count=len(posts))
+generated = findings.generate(corpus_tok, config, raw_count=raw_count)
 
 # An engagement score of zero everywhere means the tiers are meaningless. Say so
 # so three tiers stop looking like a finding.
@@ -352,7 +383,7 @@ flat_engagement = int(corpus["engagement_score"].sum()) == 0
 st.markdown(
     f'<div style="margin-top:6px"><span class="mb-chip">{config.name}</span>'
     f'<span class="mb-meta">{source_label} &nbsp;/&nbsp; {len(corpus)} posts '
-    f'&nbsp;/&nbsp; {len(posts)} records read</span></div>',
+    f'&nbsp;/&nbsp; {raw_count} records read</span></div>',
     unsafe_allow_html=True,
 )
 
@@ -449,7 +480,7 @@ with view_report:
     branding.section(st, "Corpus")
     m = st.columns(4)
     m[0].metric("posts analysed", len(corpus))
-    m[1].metric("records read", len(posts))
+    m[1].metric("records read", raw_count)
     m[2].metric("tiers", "/".join(str(int((corpus["engagement_tier"] == t).sum()))
                                   for t in config.tier_labels))
     m[3].metric("framework layers", len(config.themes))
@@ -604,7 +635,7 @@ with view_accounts:
         filters_for_file = dict(active)
         filters_for_file.update({"languages": langs, "since": since_val, "until": until_val})
         xl = export.accounts_workbook(kept, scored, config, filters_for_file,
-                                      len(corpus), len(posts), platform=source_label)
+                                      len(corpus), raw_count, platform=source_label)
         st.download_button(
             "Download the account list (Excel)", xl,
             file_name=f"{config.name}-accounts.xlsx",
