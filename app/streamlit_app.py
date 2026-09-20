@@ -42,6 +42,26 @@ st.set_page_config(page_title="Monk-E Bars", layout="wide",
 branding.inject_css(st)
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs"
+
+# A hosted container starts with no NLTK data and an empty disk, so the tokeniser
+# fetch would otherwise run inside the first analysis and look like a hang.
+# Warming it here moves the wait to startup, and a failure is harmless because
+# the regex tokeniser takes over.
+@st.cache_resource(show_spinner=False)
+def _warm_tokeniser() -> bool:
+    from monke_bars.text import ensure_nltk
+    try:
+        return ensure_nltk()
+    except Exception:
+        return False
+
+
+_warm_tokeniser()
+
+# Language detection runs at roughly a second per hundred posts on a laptop and
+# slower on a shared instance, so a hosted copy caps the corpus and says so.
+# Unset it to lift the cap when running locally.
+MAX_POSTS = int(os.environ.get("MONKE_BARS_MAX_POSTS", "0")) or None
 ACCEPTED = ["ndjson", "jsonl", "json", "csv", "tsv", "xlsx", "xls"]
 
 
@@ -250,6 +270,14 @@ except ValueError as exc:
 if not posts:
     st.error("No posts were parsed out of these files.")
     st.stop()
+
+if MAX_POSTS and len(posts) > MAX_POSTS:
+    st.warning(
+        f"This instance reads the first {MAX_POSTS} posts of a capture, and "
+        f"{len(posts)} were supplied. Language detection is the limit. "
+        f"Running the tool locally removes the cap."
+    )
+    posts = sorted(posts, key=lambda p: p.engagement_score, reverse=True)[:MAX_POSTS]
 
 # Detection is the slow step, so the corpus is built once keeping everything, and
 # the settings below filter it. Rebuilding on every control change would make the

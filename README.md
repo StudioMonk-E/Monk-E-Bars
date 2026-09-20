@@ -102,6 +102,21 @@ Stated here because these shape how the output should be used.
 
 **A language filter removes a great deal.** On the açaí corpus, keeping English only removed 196 of 399 posts, which is 49 percent of the capture. Portuguese-language posts are absent from every figure in that study, and on a Brazilian ingredient that is a scoping decision with consequences.
 
+## Hosting
+
+Streamlit Community Cloud runs this from the repository with no further setup.
+The entry point is `app/streamlit_app.py` and dependencies come from
+`requirements.txt`.
+
+A hosted instance is slower than a laptop, and language detection is the step
+that shows it. Setting `MONKE_BARS_MAX_POSTS` caps the corpus and prints the cap
+on screen; leaving it unset removes the limit, which is the right setting for a
+local copy.
+
+Restricting a hosted app to named viewers is worth doing. An open instance lets
+anyone upload a capture and download a list of identifiable people, which is a
+different posture from a tool run locally by one researcher.
+
 ## Data and privacy
 
 Captures hold personal data, and the account list holds more of it: named individuals, profile links, engagement, in a file built to be shared. Handle it under the same rules as any other personal data, and check that a scrape is permitted before running one for commercial purposes.
