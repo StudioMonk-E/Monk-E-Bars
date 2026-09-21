@@ -82,7 +82,7 @@ def fingerprint(uploads) -> str:
     return h.hexdigest()[:16]
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=2)
 def spill(fp: str, _uploads) -> list[str]:
     """Write uploads to disk so detection and the adapters can read real files.
 
@@ -288,7 +288,7 @@ if not go:
 # missed, every filter change re-ran language detection, and the panel appeared
 # to hang. The fingerprint is stable across reruns because it comes from the
 # bytes rather than from where they happen to sit on disk.
-@st.cache_data(show_spinner="Reading captions and detecting languages")
+@st.cache_data(show_spinner="Reading captions and detecting languages", max_entries=2)
 def prepare(fp: str, tier_labels, max_posts, _paths, _mapping):
     """Parse, cap and build the corpus once per uploaded capture.
 
@@ -384,7 +384,7 @@ if corpus.empty:
 # it, because the stopword list is chosen from the languages that survive: tokens
 # built against every language and then filtered would differ from tokens built
 # against the languages actually kept.
-@st.cache_data(show_spinner="Reading the corpus")
+@st.cache_data(show_spinner="Reading the corpus", max_entries=6)
 def analyse(fp: str, selection, study: str, raw: int, _corpus, _config):
     out = lexical.analyze(_corpus, _config)
     return out, findings.generate(out["corpus"], _config, raw_count=raw)
@@ -582,7 +582,7 @@ if VIEW == "REPORT":
 if VIEW == "ACCOUNTS":
     branding.section(st, "Accounts", "one row per account, ranked by its strongest post")
 
-    @st.cache_data(show_spinner="Rolling up accounts")
+    @st.cache_data(show_spinner="Rolling up accounts", max_entries=6)
     def _accounts(fp: str, selection, study: str, _corpus, _config):
         return accounts_mod.build_accounts(_corpus, _config)
 
@@ -752,7 +752,7 @@ if VIEW == "WORKBENCH":
                 f'<div class="mb-note">Showing the first {PREVIEW} of {len(show)} rows. '
                 f'The download holds every one.</div>', unsafe_allow_html=True)
 
-        @st.cache_data(show_spinner=False)
+        @st.cache_data(show_spinner=False, max_entries=2)
         def _corpus_csv(fp: str, selection, _df):
             return _df.to_csv(index=False).encode("utf-8-sig")
 
