@@ -75,7 +75,7 @@ def discover_themes(corpus, n_topics: int = 5, n_words: int = 10,
         themes[label] = words
         rows.append({"Topic": label, "Top words": ", ".join(words), "Posts": post_counts[idx]})
 
-    table = pd.DataFrame(rows).sort_values("Posts", ascending=False).reset_index(drop=True)
+    table = pd.DataFrame(rows).sort_values("Posts", ascending=False, kind="stable").reset_index(drop=True)
     # Reorder the dict to match the table (most-loaded topic first)
     themes = {r["Topic"]: themes[r["Topic"]] for _, r in table.iterrows()}
     return themes, table

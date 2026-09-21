@@ -13,53 +13,33 @@ import re
 from functools import lru_cache
 
 import contractions
-import nltk
 from nltk.util import bigrams as _bigrams, trigrams as _trigrams
 
-_NLTK_OK: "bool | None" = None
-_WORD_RE = re.compile(r"[^\W\d_]+")  # runs of letters (Unicode), no digits/underscore
+# Runs of letters in any script. Digits and underscores are excluded, which is
+# what keeps a decorative "_____" line and a trailing "fotografie_" out of the
+# vocabulary.
+_WORD_RE = re.compile(r"[^\W\d_]+")
 
 
 def ensure_nltk() -> bool:
-    """Ensure the Punkt tokeniser is available; download it once if possible.
-
-    Returns True if NLTK's word_tokenize can be used, False if we should fall
-    back to the regex tokeniser (e.g. offline environments where the download is
-    blocked). Result is cached so this is cheap to call repeatedly.
-    """
-    global _NLTK_OK
-    if _NLTK_OK is not None:
-        return _NLTK_OK
-    for pkg in ("punkt", "punkt_tab"):
-        try:
-            nltk.data.find(f"tokenizers/{pkg}")
-        except LookupError:
-            try:
-                nltk.download(pkg, quiet=True)
-            except Exception:
-                pass
-    try:
-        from nltk.tokenize import word_tokenize
-        word_tokenize("probe test")
-        _NLTK_OK = True
-    except Exception:
-        _NLTK_OK = False
-    return _NLTK_OK
+    """Kept for callers that warm the tokeniser. Nothing needs downloading now."""
+    return False
 
 
 def _tokenize(text: str) -> list[str]:
-    """Tokenise cleaned text. Uses NLTK Punkt when available, else a regex.
+    """Split cleaned text into word tokens with one deterministic regex.
 
-    By this point captions are already lowercased and stripped of punctuation and
-    digits, so regex word-splitting matches Punkt's output on our inputs, the
-    fallback keeps the tool working offline without changing results.
+    This used to prefer NLTK's Punkt tokeniser and fall back to the regex. Punkt
+    kept underscores inside tokens, so "fotografie_" and "fotografie" counted as
+    different words and a line of underscores counted as one, and it split
+    "cannot" in two. By this point punctuation and digits are already gone, so
+    Punkt had nothing left to contribute beyond those differences.
+
+    On the thesis corpus the switch changes no count at all: the top thirty words
+    and every figure behind them are identical. The browser version runs this
+    same regex, which is what lets the two tools agree token for token, and no
+    runtime download remains.
     """
-    if ensure_nltk():
-        from nltk.tokenize import word_tokenize
-        try:
-            return word_tokenize(text)
-        except Exception:
-            pass
     return _WORD_RE.findall(text)
 
 
@@ -102,6 +82,40 @@ def build_stopwords(extra=None, languages=None) -> frozenset:
     return _stopword_set(tuple(sorted(extra or [])), langs)
 
 
+# --- contractions --------------------------------------------------------
+
+def _contraction_table() -> dict:
+    """The mapping contractions.fix() applies, in the order the library adds it."""
+    merged: dict = {}
+    for table in (contractions.contractions_dict, contractions.leftovers_dict,
+                  contractions.slang_dict):
+        for k, v in table.items():
+            merged[k.lower()] = v
+    return merged
+
+
+_CONTRACTIONS = _contraction_table()
+# Longest first, so "shouldn't've" wins over "shouldn't". Bounded by anything
+# that is not a word character in any script.
+#
+# The contractions library decides boundaries with an ASCII rule, so to it "ç"
+# is not part of a word. In "cupuaçu", an Amazonian fruit and a relative of açaí,
+# it saw the final "u" as the text-speak word "u" and rewrote the name as
+# "cupuaçyou". Applying the library's own table with a Unicode boundary keeps
+# every expansion it makes and stops it reaching inside words it cannot read.
+_CONTRACTION_RE = re.compile(
+    r"(?<![^\W])(?:"
+    + "|".join(re.escape(k) for k in sorted(_CONTRACTIONS, key=len, reverse=True))
+    + r")(?![^\W])"
+)
+
+
+def _expand_contractions(text: str) -> str:
+    # Captions are lowercased before this step, and the library matches a
+    # replacement's case to what it replaced, so every replacement is lowercase.
+    return _CONTRACTION_RE.sub(lambda m: _CONTRACTIONS[m.group(0)].lower(), text)
+
+
 # --- normalisation ------------------------------------------------------
 
 _RE_HASHTAG = re.compile(r"#\w+")
@@ -124,7 +138,7 @@ def normalize(caption: str) -> list[str]:
     text = _RE_HASHTAG.sub("", text)
     text = _RE_MENTION.sub("", text)
     text = _RE_URL.sub("", text)
-    text = contractions.fix(text)
+    text = _expand_contractions(text)
     text = _RE_BRACKETS.sub("", text)
     text = _RE_PUNCT.sub("", text)
     text = _RE_DIGITS.sub("", text)

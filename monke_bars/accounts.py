@@ -305,7 +305,7 @@ def build_accounts(corpus: pd.DataFrame, config: Config,
     out = pd.DataFrame(rows)
     if out.empty:
         return out
-    return out.sort_values("best_engagement", ascending=False).reset_index(drop=True)
+    return out.sort_values("best_engagement", ascending=False, kind="stable").reset_index(drop=True)
 
 
 # --- filtering -----------------------------------------------------------

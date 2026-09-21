@@ -92,7 +92,7 @@ def retier(df: pd.DataFrame, tier_labels: Sequence[str]) -> pd.DataFrame:
     """
     if df.empty:
         return df
-    out = df.sort_values("engagement_score", ascending=False).reset_index(drop=True)
+    out = df.sort_values("engagement_score", ascending=False, kind="stable").reset_index(drop=True)
     out["engagement_rank"] = out.index + 1
     out["engagement_tier"] = assign_tiers(len(out), list(tier_labels))
     return out
@@ -179,7 +179,7 @@ def build_corpus(
 
     # 4. engagement score, rank, tier
     df["engagement_score"] = df["engagement_score"].fillna(0).astype(int)
-    df = df.sort_values("engagement_score", ascending=False).reset_index(drop=True)
+    df = df.sort_values("engagement_score", ascending=False, kind="stable").reset_index(drop=True)
     df["engagement_rank"] = df.index + 1
     df["engagement_tier"] = assign_tiers(len(df), list(tier_labels))
 

@@ -129,7 +129,7 @@ def keyness(
     df = pd.DataFrame(rows)
     if df.empty:
         return df
-    return df.sort_values("Log-likelihood", ascending=False).head(top_n).reset_index(drop=True)
+    return df.sort_values("Log-likelihood", ascending=False, kind="stable").head(top_n).reset_index(drop=True)
 
 
 def keyness_all_tiers(
