@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import datetime as _dt
 import io
-from typing import Optional
 
 import pandas as pd
 

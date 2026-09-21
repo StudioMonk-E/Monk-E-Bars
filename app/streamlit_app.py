@@ -31,7 +31,7 @@ from monke_bars.config import Config
 from monke_bars.corpus import (build_corpus, language_counts, filter_languages,
                                filter_dates, retier)
 from monke_bars.detect import detect
-from monke_bars.ingest import ADAPTERS, SUPPORTED, TabularAdapter, load_auto, read_table, guess_mapping
+from monke_bars.ingest import load_auto, read_table, guess_mapping
 from monke_bars import (lexical, color as color_mod, branding, topics, findings,
                         accounts as accounts_mod, export)
 
@@ -351,17 +351,23 @@ dates = pd.to_datetime(full_corpus.get("timestamp"), utc=True, errors="coerce")
 has_dates = dates.notna().any()
 with s2:
     if has_dates:
-        lo = dates.min().date()
-        since_val = st.date_input("Posted from", value=pd.Timestamp(config.since).date()
-                                  if config.since else lo, min_value=lo,
-                                  max_value=dates.max().date())
+        lo, hi = dates.min().date(), dates.max().date()
+        # A study's `since` is written for its own corpus and can fall outside
+        # what this capture covers. Streamlit raises on a value outside its
+        # bounds, so the study date is clamped into range instead.
+        start = lo
+        if config.since:
+            try:
+                start = min(max(pd.Timestamp(config.since).date(), lo), hi)
+            except (ValueError, TypeError):
+                start = lo
+        since_val = st.date_input("Posted from", value=start, min_value=lo, max_value=hi)
     else:
-        since_val = None
+        lo = hi = since_val = None
         st.caption("No dates in this capture.")
 with s3:
     if has_dates:
-        until_val = st.date_input("Posted until", value=dates.max().date(),
-                                  min_value=lo, max_value=dates.max().date())
+        until_val = st.date_input("Posted until", value=hi, min_value=lo, max_value=hi)
     else:
         until_val = None
 
@@ -404,11 +410,15 @@ if flat_engagement:
     st.warning("Every post scores zero engagement, so the tiers carry no information. "
                "Map a likes or comments column, or read the vocabulary sections only.")
 
-view_report, view_accounts, view_workbench = st.tabs(["REPORT", "ACCOUNTS", "WORKBENCH"])
+# st.tabs renders every tab on every rerun and hides the inactive ones in CSS,
+# so all three views were being rebuilt and sent to the browser each time a
+# filter moved. A segmented control renders only what is selected.
+VIEW = st.segmented_control("View", ["REPORT", "ACCOUNTS", "WORKBENCH"],
+                            default="REPORT", label_visibility="collapsed") or "REPORT"
 
 
 # ===== REPORT ===========================================================
-with view_report:
+if VIEW == "REPORT":
     branding.section(st, "Finding")
 
     if config.claim:
@@ -569,7 +579,7 @@ with view_report:
 # ===== ACCOUNTS =========================================================
 # The other view asks how a topic is talked about. This one asks which accounts
 # to look at, off the same corpus, and ends in a file someone works from.
-with view_accounts:
+if VIEW == "ACCOUNTS":
     branding.section(st, "Accounts", "one row per account, ranked by its strongest post")
 
     @st.cache_data(show_spinner="Rolling up accounts")
@@ -668,9 +678,11 @@ with view_accounts:
                                   if c in dropped.columns]],
                          hide_index=True, use_container_width=True, height=300)
 
+    branding.footer(st)
+
 
 # ===== WORKBENCH ========================================================
-with view_workbench:
+if VIEW == "WORKBENCH":
     branding.section(st, "Workbench", "the tables, the controls, the exports")
 
     wb = st.tabs(["Keyness", "Words", "Phrases", "Hashtags", "Themes", "Corpus"])
@@ -730,9 +742,22 @@ with view_workbench:
 
     with wb[5]:
         show = corpus_tok.drop(columns=["content_tokens"], errors="ignore")
-        st.dataframe(show, use_container_width=True, height=460)
+        # The whole corpus reached about 900 KB of JSON on a 300-post capture,
+        # and it crossed the wire on every interaction. A preview covers reading
+        # it on screen, and the download covers having all of it.
+        PREVIEW = 100
+        st.dataframe(show.head(PREVIEW), use_container_width=True, height=460)
+        if len(show) > PREVIEW:
+            st.markdown(
+                f'<div class="mb-note">Showing the first {PREVIEW} of {len(show)} rows. '
+                f'The download holds every one.</div>', unsafe_allow_html=True)
+
+        @st.cache_data(show_spinner=False)
+        def _corpus_csv(fp: str, selection, _df):
+            return _df.to_csv(index=False).encode("utf-8-sig")
+
         st.download_button("Download corpus (CSV)",
-                           show.to_csv(index=False).encode("utf-8-sig"),
+                           _corpus_csv(fingerprint_, _selection, show),
                            file_name=f"{config.name}_corpus.csv", mime="text/csv")
 
     branding.footer(st)

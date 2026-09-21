@@ -12,7 +12,7 @@ it, or embed it.
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Sequence
 
 import logging
 
@@ -51,7 +51,7 @@ _FALLBACK = [branding.ACCENT, branding.INK_60, branding.INK_35,
              branding.ACCENT_ALT["amber"], branding.ACCENT_ALT["sand"]]
 
 # The display and mono faces, with fallbacks so a machine without them still
-# still renders.
+# renders.
 _DISPLAY = ["Unbounded", "DejaVu Sans", "sans-serif"]
 _MONO = ["IBM Plex Mono", "DejaVu Sans Mono", "monospace"]
 _BODY = ["Inter", "DejaVu Sans", "sans-serif"]

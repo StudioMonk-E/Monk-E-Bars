@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 from .base import Adapter, PostRecord

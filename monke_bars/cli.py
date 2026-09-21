@@ -11,7 +11,6 @@ Examples
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -20,7 +19,7 @@ from . import __version__
 from .config import load_config
 from .corpus import build_corpus
 from .ingest import ADAPTERS, SUPPORTED, load_posts
-from . import lexical, color as color_mod, viz
+from . import branding, lexical, color as color_mod, viz
 
 
 def _cmd_platforms(args):
@@ -81,7 +80,8 @@ def _cmd_analyze(args):
     c = outdir / "charts"
     viz.bar_top_words(results["top_words"].head(20), f"Top words, {config.name}").savefig(c / "top_words_overall.png", dpi=120)
     viz.bar_top_words(results["cooccurring_hashtags"].head(20).rename(columns={"Hashtag": "Word"}),
-                      "Co-occurring hashtags", color="#1f78b4").savefig(c / "cooccurring_hashtags.png", dpi=120)
+                      "Co-occurring hashtags",
+                      color=branding.ACCENT_ALT["cobalt"]).savefig(c / "cooccurring_hashtags.png", dpi=120)
 
     # Thematic layer: hand-built framework if defined, else data-driven discovery.
     if config.themes:
