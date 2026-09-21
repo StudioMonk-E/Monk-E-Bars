@@ -19,7 +19,13 @@ from typing import Optional
 from .base import Adapter, PostRecord
 
 _HASHTAG_RE = re.compile(r"#\w+")
-_MENTION_RE = re.compile(r"@[\w.]+")
+# Handles may contain dots but never begin or end with one. Instagram's old
+# pattern stopped at the first dot, turning @newborn.fit.mama into @newborn;
+# TikTok's took the dots and a sentence's full stop with them, so "thanks
+# @anna." gave "@anna.". Across two Instagram captures the first alone cut 56
+# credited handles short, which in an outreach list means naming the wrong
+# account or none at all.
+_MENTION_RE = re.compile(r"@\w(?:[\w.]*\w)?")
 
 
 def _first(d: dict, *keys, default=None):
