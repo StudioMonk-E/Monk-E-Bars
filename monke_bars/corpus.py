@@ -98,6 +98,33 @@ def retier(df: pd.DataFrame, tier_labels: Sequence[str]) -> pd.DataFrame:
     return out
 
 
+def _is_date_only(value) -> bool:
+    """True for a calendar date, as a date picker or "2026-09-19" supplies it."""
+    import datetime as _dt
+    if isinstance(value, _dt.datetime):
+        return False
+    return isinstance(value, _dt.date) or (isinstance(value, str) and len(value.strip()) <= 10)
+
+
+def _window(ts: pd.Series, since=None, until=None) -> pd.Series:
+    """Boolean mask of timestamps inside [since, until].
+
+    A bare date for ``until`` means through the end of that day. Read as a
+    timestamp it would mean midnight at the start of it, and the interface's
+    default, the date of the newest post, then excluded every post from that
+    day: four of them on a real capture, and the most recent four at that.
+    """
+    keep = ts.notna()
+    if since is not None:
+        keep &= ts >= pd.Timestamp(since, tz="UTC")
+    if until is not None:
+        hi = pd.Timestamp(until, tz="UTC")
+        if _is_date_only(until):
+            hi = hi + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
+        keep &= ts <= hi
+    return keep
+
+
 def filter_dates(df: pd.DataFrame, since=None, until=None) -> pd.DataFrame:
     """Keep posts published inside a window, without rebuilding the corpus.
 
@@ -107,12 +134,7 @@ def filter_dates(df: pd.DataFrame, since=None, until=None) -> pd.DataFrame:
     if (since is None and until is None) or df.empty or "timestamp" not in df.columns:
         return df
     ts = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
-    keep = ts.notna()
-    if since is not None:
-        keep &= ts >= pd.Timestamp(since, tz="UTC")
-    if until is not None:
-        keep &= ts <= pd.Timestamp(until, tz="UTC")
-    return df[keep].reset_index(drop=True)
+    return df[_window(ts, since, until)].reset_index(drop=True)
 
 
 def build_corpus(
@@ -156,12 +178,8 @@ def build_corpus(
     # 2. date window, before language detection so the slow step runs on fewer rows
     if since is not None or until is not None:
         ts = pd.to_datetime(df.get("timestamp"), utc=True, errors="coerce")
-        keep = ts.notna()
-        df.attrs["undated_removed"] = int((~keep).sum())
-        if since is not None:
-            keep &= ts >= pd.Timestamp(since, tz="UTC")
-        if until is not None:
-            keep &= ts <= pd.Timestamp(until, tz="UTC")
+        df.attrs["undated_removed"] = int(ts.isna().sum())
+        keep = _window(ts, since, until)
         before_date = len(df)
         df = df[keep].reset_index(drop=True)
         df.attrs["dated_out"] = before_date - len(df)

@@ -385,3 +385,24 @@ def test_engagement_rate_uses_views_and_is_absent_without_them():
     # The follower filter never drops an account whose count is unknown.
     kept = accounts.passing(acc.reset_index(), min_followers=1000)
     assert "a" in list(kept["username"])
+
+
+def test_until_date_includes_the_whole_day():
+    """A date picker's 'until' must keep posts from that day, not stop at midnight.
+
+    Read as a bare timestamp it meant the start of the day, and the interface
+    defaults 'until' to the newest post's date, so the newest posts vanished.
+    """
+    import datetime as dt
+    from monke_bars.corpus import filter_dates
+    def at(pid, iso):
+        rec = _ig_record(pid, "caption", 10)
+        rec["data"]["taken_at"] = int(dt.datetime.fromisoformat(iso).replace(
+            tzinfo=dt.timezone.utc).timestamp())
+        return get_adapter("instagram").parse_record(rec)
+    corpus = build_corpus([at("1", "2026-09-18T12:00"), at("2", "2026-09-19T08:56"),
+                           at("3", "2026-09-20T00:00")],
+                          language=None, tier_labels=["High", "Low"])
+    for until in (dt.date(2026, 9, 19), "2026-09-19"):
+        kept = set(filter_dates(corpus, None, until)["post_id"])
+        assert kept == {"1", "2"}, f"{until!r} kept {kept}"
