@@ -1,0 +1,78 @@
+{
+ "default_marker": "default",
+ "types": {
+  "Brand or business": {
+   "handle_words": [
+    "shop",
+    "store",
+    "winkel",
+    "boutique",
+    "salon",
+    "studio",
+    "atelier",
+    "official",
+    "officieel",
+    "company",
+    "agency",
+    "bureau",
+    "brand",
+    "collection",
+    "label",
+    "cafe",
+    "koffie",
+    "restaurant",
+    "bakery",
+    "bakkerij",
+    "hotel",
+    "venue",
+    "locatie",
+    "catering",
+    "market",
+    "markt",
+    "design",
+    "fotograf",
+    "photograph",
+    "florist",
+    "bloemen",
+    "juwel",
+    "jewel",
+    "clinic",
+    "kliniek",
+    "academy",
+    "school"
+   ],
+   "name_words": [
+    " bv",
+    " b.v",
+    " gmbh",
+    " ltd",
+    " inc",
+    " nv"
+   ]
+  },
+  "News or media": {
+   "handle_words": [
+    "nieuws",
+    "news",
+    "magazine",
+    "krant",
+    "times",
+    "daily",
+    "journal",
+    "journaal",
+    "radio",
+    "omroep",
+    "televisie",
+    "media",
+    "podcast",
+    "press",
+    "redactie",
+    "editorial",
+    "showbizz",
+    "showbiz",
+    "tv"
+   ]
+  },
+  "Person": "default"
+ }
+}

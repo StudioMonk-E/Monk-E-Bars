@@ -10,27 +10,30 @@ Monk-E Bars answers two questions about the same capture.
 
 It grew out of a media-studies thesis on the açaí bowl and was generalised, so a study is one small YAML file and the same pipeline serves any subject in any language.
 
-## Install
+## Two ways to run it
+
+**In the browser.** The [`web/`](web) folder is a static site with no server behind it. A dropped capture is read, parsed and language-detected inside the tab, once, and every filter after that works on data already in memory, so a click applies in milliseconds and a capture of several thousand posts stays usable. The file never leaves the machine that opened it.
+
+```bash
+cd web && python3 -m http.server 5173
+```
+
+Then open `http://localhost:5173`. Any static host serves the same folder.
+
+**As a Python package.** The research instrument: the command line, topic modelling and colour, which the browser cannot do.
 
 ```bash
 git clone https://github.com/StudioMonk-E/Monk-E-Bars.git
 cd Monk-E-Bars
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[app]"
-```
-
-## Run
-
-```bash
-streamlit run app/streamlit_app.py
-```
-
-Drop a capture on the page. The platform is read out of the file, so nothing has to be chosen first. A command line exists for scripted runs:
-
-```bash
 monke-bars analyze --platform instagram --config configs/acai.yaml \
     --outdir runs/acai "#acaibowl_foryou.ndjson"
 ```
+
+`streamlit run app/streamlit_app.py` opens a local dashboard over the same package, with colour and topics included.
+
+The two share one source of truth. Stopwords, account types, contraction rules and bundled studies live in the package and are exported to `web/data` by `scripts/export_web_data.py`; a test fails when the export goes stale. The browser port was checked against the package on four real captures, and every word ranking, keyness score, theme share, account row and generated finding came out identical.
 
 ## What it reads
 
@@ -98,30 +101,21 @@ Stated here because these shape how the output should be used.
 
 **Account type is a keyword match.** It produces false positives and misses. A couple whose handle contains *official* reads as a business; a garden centre called *tuincentrum* reads as a person until the word is added.
 
-**Language detection is imperfect on short captions**, and closely related languages defeat it. Signals with veto words exist for that case, and Afrikaans against Dutch is the worked example.
+**Language detection is imperfect on short captions**, and closely related languages defeat it. Signals with veto words exist for that case, and Afrikaans against Dutch is the worked example. The browser uses a different detector from the package, franc against langdetect, restricted to the 33 languages with stopword lists. On 432 real posts the two agree on 82 percent, and a sample of the disagreements was mostly Dutch that both detectors got wrong in equal measure. A figure that has to match a published study comes from the package.
 
 **A language filter removes a great deal.** On the açaí corpus, keeping English only removed 196 of 399 posts, which is 49 percent of the capture. Portuguese-language posts are absent from every figure in that study, and on a Brazilian ingredient that is a scoping decision with consequences.
 
 ## Hosting
 
-Streamlit Community Cloud runs this from the repository with no further setup.
-The entry point is `app/streamlit_app.py` and dependencies come from
-`requirements.txt`.
+The browser app is static files. On Vercel, the project's Root Directory is `web` with no build command; `web/.vercelignore` keeps the tests and Node tooling out of the deployment.
 
-A hosted instance is slower than a laptop, and language detection is the step
-that shows it. Setting `MONKE_BARS_MAX_POSTS` caps the corpus and prints the cap
-on screen; leaving it unset removes the limit, which is the right setting for a
-local copy.
-
-Restricting a hosted app to named viewers is worth doing. An open instance lets
-anyone upload a capture and download a list of identifiable people, which is a
-different posture from a tool run locally by one researcher.
+A hosted copy holds no data. Every capture is processed in the visitor's own browser and nothing is uploaded, which removes the risk a hosted Python dashboard carried, where an open instance received other people's captures on a shared server.
 
 ## Data and privacy
 
 Captures hold personal data, and the account list holds more of it: named individuals, profile links, engagement, in a file built to be shared. Handle it under the same rules as any other personal data, and check that a scrape is permitted before running one for commercial purposes.
 
-`.gitignore` keeps captures and exported workbooks out of version control. The repository carries no scraped data.
+`.gitignore` keeps captures and exported workbooks out of version control. The repository carries no scraped data, and the browser tests run on synthetic records only.
 
 ## Layout
 
@@ -139,9 +133,14 @@ monke_bars/          the package
   color.py           media download and palettes
   branding.py        the studio identity, one place
   viz.py             matplotlib charts for the CLI
-app/streamlit_app.py the dashboard
+app/streamlit_app.py the local dashboard
+web/                 the browser app, a port of the package
+  js/                ingest, text, corpus, lexical, accounts, findings, export
+  data/              generated by scripts/export_web_data.py
+  tests/             node --test, synthetic records
 configs/             studies
-scripts/voice_check.py  prose check against the house voice rules
+scripts/export_web_data.py  writes web/data
+scripts/voice_check.py      prose check against the house voice rules
 tests/               pytest, offline
 ```
 
@@ -151,10 +150,12 @@ tests/               pytest, offline
 pip install -e ".[app,dev]"
 pytest -q
 python scripts/voice_check.py
+python scripts/export_web_data.py   # after changing a list or a study
+cd web && npm install && npm test
 ```
 
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
 
-Built on [Zeeschuimer](https://github.com/digitalmethodsinitiative/zeeschuimer) from the Digital Methods Initiative, with NLTK, pandas, scikit-learn, Pillow, Altair and Streamlit.
+Built on [Zeeschuimer](https://github.com/digitalmethodsinitiative/zeeschuimer) from the Digital Methods Initiative, with NLTK, pandas, scikit-learn, Pillow, Altair and Streamlit, and in the browser franc, SheetJS and js-yaml.

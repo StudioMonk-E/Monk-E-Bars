@@ -50,9 +50,56 @@ EXEMPT_FILES = {
 # input a tokeniser is being checked against.
 SKIP_DIRS = {".venv", "__pycache__", ".git", "node_modules", "runs",
              "media_cache", "tests", "design"}
-SCAN_SUFFIXES = {".py", ".yaml", ".yml", ".md"}
+SCAN_SUFFIXES = {".py", ".yaml", ".yml", ".md", ".js", ".mjs", ".html", ".css"}
 
-PRAGMA = re.compile(r"#\s*voice:\s*ignore")
+# In these the prose is only part of each line: comments, string text and, in
+# HTML, what sits between the tags. The operators around it are code, and "!x"
+# or "a ? b : c" are not an exclamation or a question.
+PARTIAL = {".js", ".mjs", ".html", ".css"}
+
+PRAGMA = re.compile(r"(#|//)\s*voice:\s*ignore")
+
+_STRING = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|`(?:[^`\\]|\\.)*`')
+_INTERP = re.compile(r"\$\{[^{}]*\}")
+_TAG = re.compile(r"<[^>]*>")
+
+
+def _prose(line: str, suffix: str, in_block: bool) -> tuple[str, bool]:
+    """The part of a code line that is prose, and whether a block comment is open.
+
+    Line based and approximate, which suits a lint: a template literal spread
+    over lines is read line by line, and its interpolations are dropped.
+    """
+    if suffix == ".html":
+        return _TAG.sub(" ", line), False
+    parts = []
+    rest = line
+    if in_block or rest.lstrip().startswith("/*") or rest.lstrip().startswith("*"):
+        end = rest.find("*/")
+        if end < 0:
+            return rest, True
+        parts.append(rest[:end])
+        rest = rest[end + 2:]
+        in_block = False
+    if suffix == ".css":
+        start = rest.find("/*")
+        if start >= 0:
+            end = rest.find("*/", start)
+            parts.append(rest[start + 2:end if end >= 0 else None])
+            in_block = end < 0
+        return " ".join(parts), in_block
+    code = rest
+    while True:                      # interpolations hold code, innermost first
+        stripped = _INTERP.sub(" ", code)
+        if stripped == code:
+            break
+        code = stripped
+    for m in _STRING.finditer(code):
+        parts.append(m.group(0)[1:-1])
+    comment = re.search(r"(?:^|\s|;)//(.*)$", _STRING.sub('""', code))
+    if comment:
+        parts.append(comment.group(1))
+    return " ".join(parts), in_block
 
 
 @dataclass
@@ -125,12 +172,16 @@ def scan(path: Path) -> list[tuple[int, Rule, str]]:
     except (UnicodeDecodeError, OSError):
         return []
     found = []
-    for n, line in enumerate(lines, 1):
-        if PRAGMA.search(line):
+    in_block = False
+    for n, raw in enumerate(lines, 1):
+        if PRAGMA.search(raw):
             continue
+        line = raw
+        if path.suffix in PARTIAL:
+            line, in_block = _prose(raw, path.suffix, in_block)
         for rule in RULES:
             if rule.pattern.search(line) and not _false_positive(rule.name, line):
-                found.append((n, rule, line.strip()[:88]))
+                found.append((n, rule, raw.strip()[:88]))
     return found
 
 

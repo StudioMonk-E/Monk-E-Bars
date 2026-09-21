@@ -43,7 +43,9 @@ _LANG_NAMES = {
     "vi": "Vietnamese", "th": "Thai", "ja": "Japanese", "ko": "Korean",
     "zh-cn": "Chinese", "zh-tw": "Chinese", "ar": "Arabic", "he": "Hebrew",
     "hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "ur": "Urdu",
-    "tl": "Tagalog", "ms": "Malay", "unknown": "undetected",
+    "tl": "Tagalog", "ms": "Malay", "kk": "Kazakh", "uz": "Uzbek",
+    "tg": "Tajik", "sq": "Albanian", "eu": "Basque", "be": "Belarusian",
+    "ne": "Nepali", "unknown": "undetected",
 }
 
 
@@ -65,10 +67,11 @@ def corpus_finding(corpus, raw_count: Optional[int], config: Config) -> Finding:
     if raw_count and raw_count > kept:
         dropped = raw_count - kept
         pct = round(dropped / raw_count * 100)
-        lang = (f" The filter keeps {_lang_name(config.language)} only."
-                if config.language else "")
+        langs = [config.language] if isinstance(config.language, str) else list(config.language or [])
+        lang = (f" The filter keeps {' and '.join(_lang_name(c) for c in langs)} only."
+                if langs else "")
         text = (f"{kept} of {raw_count} captured posts enter the corpus. "
-                f"{dropped} are removed by deduplication and language filtering, "
+                f"{dropped} are removed by deduplication, language and date filtering, "
                 f"which is {pct} percent of the capture.{lang}")
     else:
         text = f"{kept} posts in the corpus."

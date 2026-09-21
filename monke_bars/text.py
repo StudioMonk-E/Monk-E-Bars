@@ -119,7 +119,9 @@ def _expand_contractions(text: str) -> str:
 # --- normalisation ------------------------------------------------------
 
 _RE_HASHTAG = re.compile(r"#\w+")
-_RE_MENTION = re.compile(r"@\w+")
+# Dots only inside a handle, as in the ingest adapters. "@\w+"
+# stopped at the first dot and left the rest of "@avec.naomi" as the word "naomi".
+_RE_MENTION = re.compile(r"@\w(?:[\w.]*\w)?")
 _RE_URL = re.compile(r"http\S+")
 _RE_BRACKETS = re.compile(r"\[.*?\]")
 _RE_PUNCT = re.compile(r"[^\w\s]")

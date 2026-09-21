@@ -74,6 +74,12 @@ def run_parameters(config, filters: dict, corpus_rows: int, raw_rows: int,
         ("Account types kept", ", ".join(filters.get("types") or []) or "every type"),
         ("Minimum engagement", filters.get("min_engagement", 0)),
     ]
+    if filters.get("min_followers"):
+        rows.append(("Minimum followers", filters["min_followers"]))
+    if filters.get("verified") is True:
+        rows.append(("Verified", "verified accounts only"))
+    elif filters.get("verified") is False:
+        rows.append(("Verified", "unverified accounts only"))
     for name, threshold in (filters.get("min_signals") or {}).items():
         rows.append((f"Minimum {name} score", threshold))
     rows += [

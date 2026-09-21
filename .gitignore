@@ -12,6 +12,8 @@ env/
 # Data & outputs (keep raw scrapes and generated files out of git)
 *.ndjson
 data/
+# The browser app's reference data is exported from the package, not scraped.
+!web/data/
 media_cache/
 outputs/
 runs/
@@ -35,3 +37,6 @@ nltk_data/
 # machine, never to the repository.
 .claude/
 design/canvas/
+
+# Browser app
+node_modules/

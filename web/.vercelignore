@@ -1,0 +1,6 @@
+# The deployment is the static site only.
+node_modules
+tests
+package.json
+package-lock.json
+_local

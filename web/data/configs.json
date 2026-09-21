@@ -1,0 +1,467 @@
+[
+ {
+  "file": "acai.yaml",
+  "name": "acai",
+  "description": "Discourse of the \"açaí bowl\" as it circulates on visual social platforms, read through four theoretical layers: coloniality, extractivism/nature, branding/wellness, and platform vernacular.\n",
+  "claim": "",
+  "language": "en",
+  "since": null,
+  "until": null,
+  "tier_labels": [
+   "High",
+   "Medium",
+   "Low"
+  ],
+  "query_hashtags": [
+   "#acaibowl",
+   "#açaíbowl",
+   "#açaibowl",
+   "#acaíbowl",
+   "#acai",
+   "#açaí",
+   "#açai",
+   "#acaí"
+  ],
+  "stopwords_extra": [
+   "pls",
+   "plz",
+   "ty",
+   "thx",
+   "thanks",
+   "thank",
+   "haha",
+   "lol",
+   "lmao",
+   "hehe",
+   "omg",
+   "yay",
+   "etc",
+   "u",
+   "im",
+   "ive",
+   "id",
+   "ya",
+   "wanna",
+   "gonna",
+   "gotta",
+   "one",
+   "two",
+   "three",
+   "four",
+   "five"
+  ],
+  "themes": {
+   "Coloniality": [
+    "brazil",
+    "brazilian",
+    "amazon",
+    "amazonian",
+    "rainforest",
+    "forest",
+    "indigenous",
+    "tropical",
+    "south",
+    "america",
+    "origin",
+    "native",
+    "exotic"
+   ],
+   "Extractivism / Nature": [
+    "natural",
+    "pure",
+    "raw",
+    "organic",
+    "real",
+    "wild",
+    "fresh",
+    "earth",
+    "nature",
+    "berry",
+    "berries",
+    "fruit",
+    "fruits",
+    "palm"
+   ],
+   "Branding / Wellness": [
+    "healthy",
+    "health",
+    "wellness",
+    "clean",
+    "balanced",
+    "fit",
+    "fitness",
+    "superfood",
+    "antioxidant",
+    "antioxidants",
+    "nutrition",
+    "nutritious",
+    "energy",
+    "boost",
+    "protein",
+    "vitamins",
+    "vegan",
+    "plantbased",
+    "glutenfree",
+    "dairyfree",
+    "delicious",
+    "yummy",
+    "tasty",
+    "amazing",
+    "perfect",
+    "favorite",
+    "favourite",
+    "breakfast",
+    "snack",
+    "dessert",
+    "bowl",
+    "smoothie",
+    "recipe",
+    "summer",
+    "morning"
+   ],
+   "Platform Vernacular": [
+    "follow",
+    "share",
+    "tag",
+    "comment",
+    "link",
+    "bio",
+    "friends",
+    "check",
+    "love",
+    "loved",
+    "new",
+    "try",
+    "tried",
+    "post",
+    "story",
+    "reel",
+    "video",
+    "photo",
+    "guys",
+    "ladies",
+    "community"
+   ]
+  },
+  "account_types": {},
+  "include_types": [],
+  "signals": {},
+  "min_signals": {},
+  "min_engagement": 0,
+  "audiences": {}
+ },
+ {
+  "file": "generic.yaml",
+  "name": "generic",
+  "description": "",
+  "claim": "",
+  "language": null,
+  "since": null,
+  "until": null,
+  "tier_labels": [
+   "High",
+   "Medium",
+   "Low"
+  ],
+  "query_hashtags": [],
+  "stopwords_extra": [],
+  "themes": {},
+  "account_types": {},
+  "include_types": [],
+  "signals": {},
+  "min_signals": {},
+  "min_engagement": 0,
+  "audiences": {
+   "Influencers": {
+    "types": [
+     "Person"
+    ],
+    "min_engagement": 500
+   },
+   "Brands": {
+    "types": [
+     "Brand or business"
+    ]
+   },
+   "Press": {
+    "types": [
+     "News or media"
+    ]
+   },
+   "Private posts": {
+    "types": [
+     "Person"
+    ],
+    "max_engagement": 500
+   }
+  }
+ },
+ {
+  "file": "template.yaml",
+  "name": "mystudy",
+  "description": "A sentence or two on what this corpus holds and what it is being read for.\n",
+  "claim": "",
+  "language": "es",
+  "since": "2025-01-01",
+  "until": null,
+  "tier_labels": [
+   "High",
+   "Medium",
+   "Low"
+  ],
+  "query_hashtags": [
+   "#tuseedtag"
+  ],
+  "stopwords_extra": [],
+  "themes": {},
+  "account_types": {
+   "Fitness business": {
+    "handle_words": [
+     "gym",
+     "fitness",
+     "coach",
+     "trainer",
+     "entrenador",
+     "pilates",
+     "crossfit",
+     "nutricion",
+     "nutrition",
+     "box",
+     "wellness"
+    ],
+    "hashtags": [
+     "personaltrainer",
+     "entrenadorpersonal",
+     "coachfitness",
+     "gymowner"
+    ],
+    "min_hashtag_hits": 2,
+    "min_post_share": 0.5
+   },
+   "Person": "default"
+  },
+  "include_types": [
+   "Person",
+   "Fitness business"
+  ],
+  "signals": {
+   "Spanish": {
+    "detected_language": "es",
+    "caption_words": [
+     "que",
+     "con",
+     "para",
+     "mi",
+     "los",
+     "las",
+     "una",
+     "muy",
+     "hoy",
+     "gracias"
+    ],
+    "min_caption_words": 2,
+    "hashtags": [
+     "entrenamiento",
+     "vidasana"
+    ],
+    "exclude_words": [
+     " tem ",
+     " você ",
+     " não "
+    ],
+    "min_exclude_words": 2
+   }
+  },
+  "min_signals": {
+   "Spanish": 2
+  },
+  "min_engagement": 500,
+  "audiences": {
+   "Influencers": {
+    "types": [
+     "Person"
+    ],
+    "min_engagement": 500
+   },
+   "Industry accounts": {
+    "types": [
+     "Fitness business"
+    ]
+   },
+   "Press": {
+    "types": [
+     "News or media"
+    ]
+   },
+   "Private posts": {
+    "types": [
+     "Person"
+    ],
+    "max_engagement": 500
+   }
+  }
+ },
+ {
+  "file": "verloofd.yaml",
+  "name": "verloofd",
+  "description": "Dutch-language engagement announcements, ranked by account.",
+  "claim": "",
+  "language": null,
+  "since": "2025-08-01",
+  "until": null,
+  "tier_labels": [
+   "High",
+   "Medium",
+   "Low"
+  ],
+  "query_hashtags": [
+   "#verloofd",
+   "#engaged"
+  ],
+  "stopwords_extra": [],
+  "themes": {},
+  "account_types": {
+   "Wedding business": {
+    "handle_words": [
+     "fotograf",
+     "photograph",
+     "bruid",
+     "bruids",
+     "trouw",
+     "wedding",
+     "bloem",
+     "floral",
+     "juwel",
+     "jewel",
+     "ring",
+     "planner",
+     "ceremonie",
+     "ambtenaar",
+     "catering",
+     "venue",
+     "locatie",
+     "styling",
+     "visagie",
+     "kapsel"
+    ],
+    "hashtags": [
+     "trouwfotograaf",
+     "weddingphotographer",
+     "weddingplanner",
+     "bruidsfotograaf",
+     "trouwlocatie",
+     "bruidsmode",
+     "trouwringen",
+     "weddingvendor"
+    ],
+    "min_hashtag_hits": 2,
+    "min_post_share": 0.5
+   },
+   "News or media": {
+    "handle_words": [
+     "nieuws",
+     "news",
+     "magazine",
+     "teenmag",
+     "krant",
+     "telegraaf",
+     "hln",
+     "rtl",
+     "radio",
+     "showbizz",
+     "showbiz",
+     "media",
+     "podcast",
+     "omroep",
+     "journaal",
+     "mnm",
+     "100pnl"
+    ]
+   },
+   "Engaged couple": "default"
+  },
+  "include_types": [
+   "Engaged couple",
+   "Wedding business"
+  ],
+  "signals": {
+   "Dutch": {
+    "detected_language": "nl",
+    "caption_words": [
+     "verloofd",
+     "verloving",
+     "ze zei ja",
+     "zei ja",
+     "trouwen",
+     "bruiloft",
+     "aanzoek",
+     "mijn liefde",
+     "wij gaan trouwen",
+     "voor altijd",
+     "samen",
+     "onze",
+     "mijn",
+     "het is",
+     "wordt",
+     "heeft",
+     "gezegd",
+     "maar",
+     "ook",
+     "nog",
+     "heel",
+     "echt",
+     "even",
+     "altijd",
+     "liefste"
+    ],
+    "min_caption_words": 2,
+    "hashtags": [
+     "verloofd",
+     "verloving",
+     "wijgaantrouwen",
+     "aanstaandebruid",
+     "zezeija"
+    ],
+    "exclude_words": [
+     " ek ",
+     " baie ",
+     " hierdie ",
+     " julle ",
+     " dankie ",
+     " saam ",
+     " sy's ",
+     " 'n "
+    ],
+    "min_exclude_words": 2
+   }
+  },
+  "min_signals": {
+   "Dutch": 2
+  },
+  "min_engagement": 500,
+  "audiences": {
+   "Influencers": {
+    "types": [
+     "Engaged couple"
+    ],
+    "min_engagement": 500
+   },
+   "Wedding vendors": {
+    "types": [
+     "Wedding business"
+    ]
+   },
+   "Press": {
+    "types": [
+     "News or media"
+    ]
+   },
+   "Private announcements": {
+    "types": [
+     "Engaged couple"
+    ],
+    "max_engagement": 500
+   }
+  }
+ }
+]

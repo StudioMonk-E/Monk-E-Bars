@@ -1,0 +1,8 @@
+{
+  "name": "monke-bars-web",
+  "private": true,
+  "type": "module",
+  "description": "Browser front end for Monk-E Bars. Dev dependencies are for tests only; the page loads its libraries from a CDN.",
+  "scripts": { "test": "node --test tests/*.test.mjs" },
+  "devDependencies": { "franc": "^6.2.0", "xlsx": "^0.18.5", "js-yaml": "^4.1.0" }
+}

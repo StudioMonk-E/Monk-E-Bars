@@ -128,6 +128,25 @@ def test_keyness_surfaces_distinctive_not_shared_words():
     assert "detox" in list(rev["Word"])
 
 
+def test_findings_survive_a_tier_that_overuses_nothing():
+    """Keyness with no rows still has its columns, so findings do not crash."""
+    from monke_bars import findings
+    cfg = Config.from_dict({"name": "t", "language": None, "tier_labels": ["High", "Low"]})
+    posts = [
+        get_adapter("instagram").parse_record(_ig_record("1", "keto keto keto keto bowl", 100)),
+        get_adapter("instagram").parse_record(_ig_record("2", "bowl fruit", 1)),
+    ]
+    corpus = lexical.add_tokens(build_corpus(posts, language=None, tier_labels=cfg.tier_labels), cfg)
+    # Nothing in the low tier reaches the minimum frequency of three.
+    assert list(lexical.keyness(corpus, "Low", "High")["Word"]) == []
+    assert any(f.kind == "keyness" for f in findings.generate(corpus, cfg))
+
+
+def test_dotted_mentions_leave_no_word_behind():
+    """"@avec.naomi" is one handle. Stopping at the dot left "naomi" as a word."""
+    assert text.normalize("bowl by @avec.naomi in brighton") == ["bowl", "by", "in", "brighton"]
+
+
 def test_detect_reads_platform_from_capture(tmp_path):
     """The platform is stated in the file, so nothing should ask the user for it."""
     from monke_bars.detect import detect

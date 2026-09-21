@@ -63,6 +63,10 @@ def top_words_by_tier(
     return result
 
 
+_KEYNESS_COLUMNS = ["Word", "Target freq", "Reference freq",
+                    "Log-likelihood", "Log ratio", "Reference"]
+
+
 def keyness(
     corpus: pd.DataFrame,
     target_tier: str,
@@ -101,8 +105,7 @@ def keyness(
     tgt_counts, ref_counts = Counter(tgt_tokens), Counter(ref_tokens)
     c, d = len(tgt_tokens), len(ref_tokens)
     if c == 0 or d == 0:
-        return pd.DataFrame(columns=["Word", "Target freq", "Reference freq",
-                                     "Log-likelihood", "Log ratio", "Reference"])
+        return pd.DataFrame(columns=_KEYNESS_COLUMNS)
 
     rows = []
     for word, a in tgt_counts.items():
@@ -126,7 +129,9 @@ def keyness(
             "Reference": ref_label,
         })
 
-    df = pd.DataFrame(rows)
+    # Named columns even with no rows, so a tier that over-uses nothing still
+    # answers df["Word"] with an empty list and findings can read it.
+    df = pd.DataFrame(rows, columns=_KEYNESS_COLUMNS)
     if df.empty:
         return df
     return df.sort_values("Log-likelihood", ascending=False, kind="stable").head(top_n).reset_index(drop=True)
