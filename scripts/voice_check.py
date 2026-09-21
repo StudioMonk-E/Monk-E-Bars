@@ -99,8 +99,10 @@ def _false_positive(rule: str, line: str) -> bool:
     if _CODE_LINE.search(line):
         return True
     if rule == "exclamation":
-        # CSS priority, the not-equals operator, an HTML comment or doctype.
-        return "!important" in line or "!=" in line or "<!" in line
+        # CSS priority, the not-equals operator, an HTML comment or doctype, and
+        # regex lookarounds, which appear on the continuation lines of a long
+        # pattern where the re.compile test above cannot see them.
+        return any(tok in line for tok in ("!important", "!=", "<!", "(?!", "(?<!"))
     if rule == "question hook":
         # Regex quantifiers and groups.
         return any(tok in line for tok in ("?:", "?=", "?!", ".*?", ".+?", "\\?", "(?"))
