@@ -16,7 +16,8 @@ import { addTokens, keyness, themeCounts, analyze } from "../js/lexical.js";
 import { pyRound, mostCommon } from "../js/util.js";
 import * as A from "../js/accounts.js";
 import { generate, setLanguageNames } from "../js/findings.js";
-import { accountsWorkbook } from "../js/export.js";
+import { accountsWorkbook, prepareAccounts } from "../js/export.js";
+import { discoverThemes } from "../js/topics.js";
 
 const data = (f) => JSON.parse(fs.readFileSync(new URL(`../data/${f}`, import.meta.url), "utf8"));
 const SW = data("stopwords.json");
@@ -156,6 +157,30 @@ test("the full suite runs on an empty-ish corpus without throwing", () => {
   assert.equal(r.topWords[0].word, "one");
 });
 
+test("muscle groups come out of the vocabulary, same every run", () => {
+  // Two subjects, no overlap: the model should separate them.
+  // A word common to most posts is dropped as describing the whole corpus, so
+  // each subject's vocabulary rotates, as real captions do.
+  const A = ["amazon", "rainforest", "brazil", "harvest", "palm", "forest"];
+  const B = ["protein", "smoothie", "breakfast", "recipe", "blender", "oats"];
+  const recs = [];
+  for (let i = 0; i < 18; i++) recs.push(ig(`a${i}`, `${A[i % 6]} ${A[(i + 1) % 6]} ${A[(i + 3) % 6]}`, 50 + i));
+  for (let i = 0; i < 18; i++) recs.push(ig(`b${i}`, `${B[i % 6]} ${B[(i + 1) % 6]} ${B[(i + 3) % 6]}`, 10 + i));
+  const posts = addTokens(corpus(recs), cfg(), SW);
+  const first = discoverThemes(posts, { nTopics: 2, nWords: 5 });
+  assert.equal(Object.keys(first.themes).length, 2);
+  const joined = Object.values(first.themes).map((w) => w.join(" "));
+  assert.ok(joined.some((w) => w.includes("amazon")) && joined.some((w) => w.includes("blender")));
+  // No group mixes the two subjects.
+  for (const words of Object.values(first.themes)) {
+    const fromA = words.filter((w) => A.includes(w)).length;
+    assert.ok(fromA === 0 || fromA === words.length, `mixed group: ${words.join(" ")}`);
+  }
+  // Seeded, so a second run on the same corpus returns the same groups.
+  assert.deepEqual(discoverThemes(posts, { nTopics: 2, nWords: 5 }).themes, first.themes);
+  assert.deepEqual(discoverThemes([], { nTopics: 2 }), { themes: {}, table: [] });
+});
+
 // --- accounts --------------------------------------------------------------
 
 const acctCfg = () => cfg({
@@ -201,6 +226,12 @@ test("accounts rank by best post and classify first match wins", () => {
   assert.equal(A.describeAudience(c, "Couples"), "engaged couple, at least 100 engagement, Dutch score 1 or more");
 });
 
+test("a type set by hand beats the keyword match", () => {
+  const c = { ...acctCfg(), account_overrides: { stancefotografie: "Engaged couple" } };
+  const [row] = A.buildAccounts(corpus([post("2", "stancefotografie", "verloofd", 900)]), c);
+  assert.deepEqual([row.account_type, row.type_reason], ["Engaged couple", "set by hand"]);
+});
+
 test("an exclusion word vetoes a lookalike language", () => {
   const scored = A.scoreSignals([{ caption_text: "ek is verloofd en gaan trouwen ", hashtag_list: [] },
     { caption_text: "toe ek is verloofd en gaan trouwen", hashtag_list: [] }], acctCfg());
@@ -211,6 +242,25 @@ test("a missing follower count never excludes an account", () => {
   const rows = [{ account_type: "x", best_engagement: 5, followers: 0 }, { account_type: "x", best_engagement: 5, followers: 10 }];
   const out = A.applyFilters(rows, { min_followers: 100 });
   assert.deepEqual(out.map((r) => r.excluded_because), ["", "under 100 followers"]);
+});
+
+test("two platforms merge into one member, linked on its own platform", () => {
+  const tt = (id, handle, caption, likes) => ({ source_platform: "tiktok.com", data: { id, desc: caption,
+    createTime: 1_700_000_000, author: { uniqueId: handle }, authorStats: { followerCount: 4200 },
+    stats: { diggCount: likes, commentCount: 0, playCount: 900 } } });
+  const posts = buildCorpus([...igPosts([ig("1", "verloofd", 80)]).map((p) => ({ ...p, author_handle: "anna" })),
+    ...parseRecords([tt("9", "anna", "verloofd", 300), tt("8", "bram", "verloofd", 10)], "tiktok")],
+    { detect: () => "nl", tierLabels: ["High", "Low"] }).posts;
+  const rows = A.buildAccounts(posts, cfg());
+  const anna = rows.find((r) => r.username === "anna");
+  assert.equal(anna.platforms, "instagram, tiktok");
+  assert.equal(anna.posts, 2);
+  assert.equal(anna.best_engagement, 300);      // the stronger post, whichever platform
+  assert.equal(anna.platform, "tiktok");
+  assert.equal(anna.followers, 4200);           // TikTok supplies what Instagram cannot
+  const ready = prepareAccounts(rows, "instagram");
+  assert.equal(ready.find((r) => r.username === "anna").profile_url, "https://www.tiktok.com/@anna");
+  assert.equal(ready.find((r) => r.username === "bram").profile_url, "https://www.tiktok.com/@bram");
 });
 
 test("the workbook has its three sheets, blanks to fill in, and the caveats", () => {

@@ -70,6 +70,7 @@ def study(path: Path) -> dict:
         "min_signals": cfg.min_signals,
         "min_engagement": cfg.min_engagement,
         "audiences": cfg.audiences,
+        "account_overrides": cfg.account_overrides,
     }
 
 

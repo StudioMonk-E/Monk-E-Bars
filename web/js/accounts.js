@@ -186,11 +186,18 @@ export function buildAccounts(posts, config, now = new Date()) {
     // Against views, as TikTok is read: the For You page serves a video to
     // people who do not follow the account.
     const rate = views ? pyRound((best.engagement_score / views) * 100, 2) : null;
-    const [account_type, type_reason] = classifyAccount(
+    const override = (config.account_overrides || {})[String(handle).toLowerCase()];
+    const [account_type, type_reason] = override ? [override, "set by hand"] : classifyAccount(
       handle, best.author_name || "", tagShares(ps, types), types);
 
+    // One handle can post on two platforms, and for an outreach list that is one
+    // person. The row records where it was found, and which platform its
+    // strongest post came from, so a profile link still resolves.
+    const platforms = [...new Set(ps.map((p) => p.platform).filter(Boolean))].sort();
     const row = {
       username: handle,
+      platforms: platforms.join(", "),
+      platform: best.platform || platforms[0] || "",
       full_name: best.author_name || "",
       verified: ps.some((p) => !!p.author_verified),
       account_type, type_reason,

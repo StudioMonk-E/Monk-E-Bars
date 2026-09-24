@@ -61,6 +61,9 @@ class Config:
     # next to its name: a capture with no follower counts leaves the tool unable to
     # separate a creator from a private individual.
     audiences: dict[str, Any] = field(default_factory=dict)
+    # Types set by hand for single accounts, handle -> type. A keyword match gets
+    # some accounts wrong, and a correction belongs with the study it was made in.
+    account_overrides: dict[str, str] = field(default_factory=dict)
 
     # -- construction ----------------------------------------------------
 
@@ -87,6 +90,8 @@ class Config:
             min_signals={k: int(v) for k, v in (d.get("min_signals") or {}).items()},
             min_engagement=int(d.get("min_engagement") or 0),
             audiences=dict(d.get("audiences") or {}),
+            account_overrides={str(k).lower(): str(v) for k, v
+                               in (d.get("account_overrides") or {}).items()},
         )
 
     @property

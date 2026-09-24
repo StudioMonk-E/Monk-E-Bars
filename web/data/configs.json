@@ -148,7 +148,8 @@
   "signals": {},
   "min_signals": {},
   "min_engagement": 0,
-  "audiences": {}
+  "audiences": {},
+  "account_overrides": {}
  },
  {
   "file": "generic.yaml",
@@ -194,7 +195,8 @@
     ],
     "max_engagement": 500
    }
-  }
+  },
+  "account_overrides": {}
  },
  {
   "file": "template.yaml",
@@ -299,7 +301,8 @@
     ],
     "max_engagement": 500
    }
-  }
+  },
+  "account_overrides": {}
  },
  {
   "file": "verloofd.yaml",
@@ -462,6 +465,7 @@
     ],
     "max_engagement": 500
    }
-  }
+  },
+  "account_overrides": {}
  }
 ]

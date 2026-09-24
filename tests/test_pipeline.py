@@ -292,6 +292,16 @@ def test_account_rollup_ranks_by_best_post_and_classifies():
     assert "Wedding business" in full[full["username"] == "mijnfotografie"].iloc[0]["excluded_because"]
 
 
+def test_a_type_set_by_hand_beats_the_keyword_match():
+    from monke_bars import accounts
+    cfg = _acct_cfg()
+    cfg.account_overrides = {"mijnfotografie": "Engaged couple"}
+    corpus = build_corpus([_post("3", "mijnfotografie", "verloofd en trouwen", 5000)],
+                          language=None, tier_labels=cfg.tier_labels, since=cfg.since)
+    row = accounts.build_accounts(corpus, cfg).iloc[0]
+    assert (row["account_type"], row["type_reason"]) == ("Engaged couple", "set by hand")
+
+
 def test_signal_exclusion_vetoes_a_lookalike_language():
     """Afrikaans resembles Dutch closely enough to defeat detection."""
     from monke_bars import accounts

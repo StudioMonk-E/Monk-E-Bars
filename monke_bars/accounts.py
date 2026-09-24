@@ -276,14 +276,23 @@ def build_accounts(corpus: pd.DataFrame, config: Config,
         # followers returns figures in the thousands of percent and means little.
         rate = round(int(best["engagement_score"]) / views * 100, 2) if views else None
 
+        override = (config.account_overrides or {}).get(str(handle).lower())
+        typed = ((override, "set by hand") if override else classify_account(
+            handle, best.get("author_name", ""), _tag_shares(posts, config),
+            config, explain=True))
+        # One handle can post on two platforms, and for an outreach list that is
+        # one person. The row records which platforms it was found on, and which
+        # one its strongest post came from, so a profile link still resolves.
+        platforms = sorted({str(x) for x in posts["platform"].unique() if x}) \
+            if "platform" in posts else []
         row = {
             "username": handle,
+            "platforms": ", ".join(platforms),
+            "platform": str(best.get("platform", "")) or (platforms[0] if platforms else ""),
             "full_name": best.get("author_name", ""),
             "verified": bool(posts["author_verified"].any())
             if "author_verified" in posts else False,
-            **dict(zip(("account_type", "type_reason"), classify_account(
-                handle, best.get("author_name", ""), _tag_shares(posts, config),
-                config, explain=True))),
+            **dict(zip(("account_type", "type_reason"), typed)),
             "posts": len(posts),
             "followers": followers,
             "best_engagement": int(best["engagement_score"]),

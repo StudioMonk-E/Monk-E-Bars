@@ -26,7 +26,7 @@ import pandas as pd
 # Column order for the worklist. Identity first, then the numbers a person ranks
 # on, then the evidence for the label, then the blanks they fill in.
 ACCOUNT_COLUMNS = [
-    "username", "profile_url", "account_type", "type_reason",
+    "username", "profile_url", "platforms", "account_type", "type_reason",
     "followers", "best_engagement", "engagement_rate_pct", "best_post_views",
     "posts", "verified", "paid_partnership",
     "best_post_date", "months_since_best", "best_post_url",
@@ -47,7 +47,13 @@ def prepare_accounts(accounts: pd.DataFrame, platform: str = "instagram") -> pd.
     if accounts.empty:
         return accounts
     df = accounts.copy()
-    df["profile_url"] = df["username"].apply(lambda h: _profile_url(h, platform))
+    # A merged list holds accounts from more than one platform, so each row's
+    # own platform decides its link rather than the run's.
+    if "platform" in df.columns:
+        df["profile_url"] = [_profile_url(h, p or platform)
+                             for h, p in zip(df["username"], df["platform"])]
+    else:
+        df["profile_url"] = df["username"].apply(lambda h: _profile_url(h, platform))
     signal_cols = sorted(c for c in df.columns if c.startswith("signal_"))
     ordered = [c for c in ACCOUNT_COLUMNS if c in df.columns] + signal_cols
     ordered += [c for c in df.columns if c not in ordered and c != "excluded_because"]
@@ -99,6 +105,10 @@ def run_parameters(config, filters: dict, corpus_rows: int, raw_rows: int,
         ("Caveat", "Account type is decided by matching words in the handle and "
                    "display name. It produces false positives and misses. The "
                    "type_reason column states what matched."),
+        ("Caveat", "A list merged from two platforms ranks each post inside its own "
+                   "platform, because likes on Instagram and on TikTok are not the "
+                   "same scale. The platforms column states where an account was "
+                   "found, and a figure is only comparable within one platform."),
         ("Caveat", "These rows describe real people. Handle them under the same "
                    "rules as any other personal data."),
     ]

@@ -136,6 +136,9 @@ input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 28px; 
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .grid.metrics { grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 14px; }
+/* One column per file, as many as fit: three sets stay side by side on a
+   laptop and stack on a narrow pane without cutting the last one off. */
+.grid.sets { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 20px 24px; }
 @media (max-width: 760px) {
   .grid.settings, .grid.two, .grid.three { grid-template-columns: minmax(0, 1fr); }
   .grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -244,3 +247,129 @@ details.panel > .inner { padding: 0 16px 16px; }
   padding: 20px 0 44px; border-top: 3px solid var(--ink); margin-top: 72px;
 }
 .foot .r { font: 11px/1.4 var(--mono); color: var(--muted); }
+
+/* ==== gym vocabulary ======================================================
+   Every gym label carries its plain meaning directly beneath or beside it, so
+   the theme names things without hiding what they are. */
+.gym { font: 500 11px/1.2 var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--gold); }
+.plain { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 4px 0 0; max-width: 74ch; }
+.plain-inline { font: 12px/1 var(--body); text-transform: none; letter-spacing: 0; color: var(--muted); margin-left: 8px; }
+.section .plain-inline { margin-left: 12px; }
+.progress .gym { margin-bottom: 10px; }
+
+/* ---- the rack ---- */
+.rack {
+  display: flex; justify-content: space-between; align-items: center; gap: 14px 20px; flex-wrap: wrap;
+  border: 2px solid var(--ink); background: var(--paper-2); padding: 12px 16px; margin-top: 8px;
+}
+.rack-line { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+#rack-summary { font: 13px/1.5 var(--mono); color: var(--ink-text); overflow-wrap: anywhere; }
+#rack-summary b { color: var(--ink); font-weight: 500; }
+#rack-summary .lift { color: var(--gold); }
+.rack-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.rack-panel { border: 2px solid var(--ink); border-top: none; padding: 18px 16px 22px; }
+
+.menu { position: relative; }
+.menu > summary { list-style: none; display: inline-flex; align-items: center; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu-list {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 250px;
+  background: var(--paper); border: 2px solid var(--ink); display: grid;
+}
+.menu-list button {
+  font: 13px/1.3 var(--mono); color: var(--ink); background: none; border: none; border-bottom: 1px solid var(--rule);
+  text-align: left; padding: 12px 14px; cursor: pointer;
+}
+.menu-list button:last-child { border-bottom: none; }
+.menu-list button:hover { background: var(--ink); color: var(--paper); }
+.menu-list small { display: block; font: 12px/1.3 var(--body); color: var(--muted); margin-top: 3px; }
+.menu-list button:hover small { color: var(--paper-2); }
+
+/* ---- two columns: the program, the results ---- */
+.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 36px; margin-top: 30px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+.program { border: 2px solid var(--ink); background: var(--paper-2); }
+.program > summary { padding: 14px 16px; cursor: pointer; list-style: none; border-bottom: 2px solid var(--ink); }
+.program > summary::-webkit-details-marker { display: none; }
+@media (min-width: 901px) { .program > summary { pointer-events: none; } }
+#program-body { padding: 6px 16px 18px; }
+.block { padding: 16px 0; border-bottom: 1px solid var(--rule); }
+.block:last-child { border-bottom: none; }
+.block .plain { margin-bottom: 10px; }
+
+input[type="text"], textarea {
+  font: 13px/1.4 var(--mono); color: var(--ink); background: var(--paper);
+  border: 2px solid var(--ink); padding: 9px 10px; width: 100%; min-height: 40px;
+}
+textarea { min-height: 76px; resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--ink-35); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chipx {
+  display: inline-flex; align-items: center; gap: 6px; font: 12px/1 var(--mono);
+  background: var(--ink); color: var(--paper); padding: 6px 4px 6px 9px;
+}
+.chipx button {
+  background: none; border: none; color: var(--paper); font: 500 13px/1 var(--mono);
+  cursor: pointer; padding: 2px 5px; min-width: 22px; min-height: 22px;
+}
+.chipx button:hover { background: var(--gold); }
+.chipx.lift { background: var(--gold); color: var(--on-gold); }
+.add-row { display: flex; gap: 6px; margin-top: 8px; }
+.add-row input { flex: 1; min-width: 0; }
+.add-row .btn { padding: 8px 12px; min-height: 40px; }
+
+details.item { border: 2px solid var(--rule); margin-top: 8px; }
+details.item > summary {
+  display: flex; justify-content: space-between; gap: 8px; padding: 9px 10px; cursor: pointer;
+  font: 13px/1.3 var(--body); color: var(--ink);
+}
+details.item > summary small { font: 11px/1.3 var(--mono); color: var(--muted); white-space: nowrap; }
+details.item[open] { border-color: var(--ink); }
+details.item .inner { padding: 4px 10px 12px; display: grid; gap: 10px; }
+details.item .field > span { font-size: 12px; margin-bottom: 5px; }
+.newbtn { margin-top: 10px; width: 100%; }
+.danger { color: var(--alert); border-color: var(--alert); }
+.danger:hover { background: var(--alert); color: var(--paper); border-color: var(--alert); }
+
+/* ---- tabs with their plain line ---- */
+.results .views { margin-top: 0; }
+.views button { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.views button small { font: 11px/1 var(--body); text-transform: none; letter-spacing: 0; color: inherit; opacity: 0.8; }
+
+/* ---- words that do things ---- */
+.word {
+  background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+  text-align: left; text-decoration: underline dotted var(--rule); text-underline-offset: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.word:hover { color: var(--gold); text-decoration-color: var(--gold); }
+.bench {
+  background: none; border: 1px solid transparent; color: var(--ink-35); cursor: pointer;
+  font: 11px/1 var(--mono); padding: 3px 5px; visibility: hidden;
+}
+.row:hover .bench, tr:hover .bench, .bench:focus-visible { visibility: visible; }
+.bench:hover { color: var(--alert); border-color: var(--alert); }
+@media (hover: none) { .bench { visibility: visible; } }
+.bars .row { grid-template-columns: minmax(56px, 8rem) minmax(0, 1fr) 3.4rem 2.6rem; }
+.bars .lbl { display: flex; min-width: 0; }
+/* A rail behind every bar, so a short one still reads as a measurement. */
+.bars .track { background: rgba(245, 240, 232, 0.08); }
+.grid.two .bars .row, .grid.three .bars .row { grid-template-columns: minmax(48px, 6.5rem) minmax(0, 1fr) 3.2rem 2.4rem; gap: 8px; }
+/* Without the bench column the bar gets that width back, which matters in
+   the narrow columns of a set comparison. */
+.bars.nobench .row { grid-template-columns: minmax(56px, 8rem) minmax(0, 1fr) 3.4rem; }
+.grid.sets .bars.nobench .row { grid-template-columns: minmax(48px, 6.5rem) minmax(0, 1fr) 3.4rem; gap: 8px; }
+
+/* ---- tables that sort and search ---- */
+.table-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-top: 18px; }
+.table-tools .field { flex: 1 1 14rem; }
+.table-tools .field.narrow { flex: 0 1 12rem; }
+th button.sort {
+  background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; white-space: nowrap;
+}
+th button.sort:hover, th button.sort[aria-sort] { color: var(--ink); }
+td select { min-height: 32px; padding: 4px 8px; font-size: 12px; width: auto; max-width: 14rem; }
+
+.coach textarea { font: 15px/1.5 var(--body); min-height: 70px; margin-top: 12px; }
+.coach .btns { margin-top: 10px; }

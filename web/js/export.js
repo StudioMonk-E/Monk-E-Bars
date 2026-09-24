@@ -9,7 +9,7 @@
 // where the library comes from a CDN, and under Node in the tests.
 
 export const ACCOUNT_COLUMNS = [
-  "username", "profile_url", "account_type", "type_reason",
+  "username", "profile_url", "platforms", "account_type", "type_reason",
   "followers", "best_engagement", "engagement_rate_pct", "best_post_views",
   "posts", "verified", "paid_partnership",
   "best_post_date", "months_since_best", "best_post_url",
@@ -31,7 +31,9 @@ export function prepareAccounts(accounts, platform = "instagram") {
   for (const c of cols) if (!ordered.includes(c) && c !== "excluded_because") ordered.push(c);
   return accounts.map((a) => {
     const row = {};
-    const src = { ...a, profile_url: profileUrl(a.username, platform) };
+    // A merged list holds accounts from two platforms, so each row's own
+    // platform decides its link rather than the session's.
+    const src = { ...a, profile_url: profileUrl(a.username, a.platform || platform) };
     for (const c of ordered) row[c] = src[c] ?? "";
     // Left empty on purpose: a judgment the tool cannot make belongs in a
     // column someone fills in by hand.
@@ -80,6 +82,10 @@ export function runParameters(config, filters, corpusRows, rawRows, platform = "
       + "the Python package's detector on about four captions in five. "
       + "Short captions and close relatives such as Dutch and Afrikaans "
       + "are where the two part."],
+    ["Caveat", "A list merged from two platforms ranks each post inside its own "
+      + "platform, because likes on Instagram and on TikTok are not the same "
+      + "scale. The platforms column states where an account was found, and a "
+      + "figure is only comparable within one platform."],
     ["Caveat", "These rows describe real people. Handle them under the same "
       + "rules as any other personal data."],
   );

@@ -14,6 +14,8 @@ It grew out of a media-studies thesis on the açaí bowl and was generalised, so
 
 **In the browser.** The [`web/`](web) folder is a static site with no server behind it. A dropped capture is read, parsed and language-detected inside the tab, once, and every filter after that works on data already in memory, so a click applies in milliseconds and a capture of several thousand posts stays usable. The file never leaves the machine that opened it.
 
+The interface is named in gym terms, and each one carries its plain meaning beside it: the **rack** is what the session keeps, a **program** is the saved setup, **weight classes** are the engagement tiers, **reps** are word counts, **members** are accounts, and an account a filter excludes **didn't make weight**. Two or three files dropped together become **sets**, compared side by side.
+
 ```bash
 cd web && python3 -m http.server 5173
 ```
@@ -33,7 +35,7 @@ monke-bars analyze --platform instagram --config configs/acai.yaml \
 
 `streamlit run app/streamlit_app.py` opens a local dashboard over the same package, with colour and topics included.
 
-The two share one source of truth. Stopwords, account types, contraction rules and bundled studies live in the package and are exported to `web/data` by `scripts/export_web_data.py`; a test fails when the export goes stale. The browser port was checked against the package on four real captures, and every word ranking, keyness score, theme share, account row and generated finding came out identical.
+The two share one source of truth. Stopwords, account types, contraction rules and bundled studies live in the package and are exported to `web/data` by `scripts/export_web_data.py`; a test fails when the export goes stale. A program saved in the browser is a study file the package reads, including the themes it modelled and any account type corrected by hand. The browser port was checked against the package on four real captures, and every word ranking, keyness score, theme share, account row and generated finding came out identical.
 
 ## What it reads
 
@@ -44,7 +46,7 @@ The two share one source of truth. Stopwords, account types, contraction rules a
 | CSV, TSV, Excel | supported, needs a column of post text |
 | X, Reddit | scaffolds with field maps, see [docs/ROADMAP.md](docs/ROADMAP.md) |
 
-Zeeschuimer stamps `source_platform` on every record, so the adapter is selected from the file. A spreadsheet needs only post text; likes, comments and dates are matched by column name where they exist, and the matching can be corrected before the run. Two captures from different platforms are refused in one analysis, since pooling them would rank two engagement scales against each other.
+Zeeschuimer stamps `source_platform` on every record, so the adapter is selected from the file. A spreadsheet needs only post text; likes, comments and dates are matched by column name where they exist, and the matching can be corrected before the run. Captures from two platforms can be read in one browser session, where each platform is ranked inside itself; the command line takes one platform per run.
 
 ## The analysis
 
@@ -52,7 +54,11 @@ Zeeschuimer stamps `source_platform` on every record, so the adapter is selected
 
 **Findings.** Every statement a corpus supports on its own is generated and printed under its own heading. The tool writes no interpretation. A study config may carry one `claim` line, which prints above the evidence attributed to its author, so a reader never has to guess which sentences came from the data.
 
-**Thematic layers.** Word lists encoding a framework, counted per tier as a share of that tier's vocabulary. Beside them sits unsupervised topic modelling over the same corpus. Dictionary methods carry a standing objection, that the lexicon encodes the conclusion, and running both in the same view answers it in practice.
+**Thematic layers, found in the vocabulary.** In the browser these are found by factorising the vocabulary itself, so a capture on a subject nobody has theorised still gets a set of themes, each labelled by its top three words. They stay editable and are saved into the program, which keeps a study reproducible. A framework written by hand still loads, and the two can be run on the same corpus, which is the practical answer to the standing objection that a dictionary encodes its own conclusion.
+
+**Set comparison.** Two or three captures dropped together stay separate as well as pooled. The comparison measures keyness with the file in place of the tier, which answers what each capture holds that the others do not, beside the words they all share.
+
+**One list from two platforms.** An Instagram and a TikTok capture can be worked in the same session, which is what an outreach list needs: Dutch wedding creators are on both. Weight classes are then cut inside each platform, since likes on one are not likes on the other, and an account posting on both comes back as a single member with both platforms named, linked on the platform its strongest post came from. The Excel list carries a `platforms` column and states the limit in its own caveats sheet.
 
 **Stopwords in 33 languages.** Baked in, taken from the NLTK corpora, selected automatically from the languages a corpus turns out to hold. The wrong list ruins an analysis in silence: a Dutch corpus read through an English list returns a ranking of Dutch grammar.
 
@@ -74,7 +80,7 @@ Output is an Excel workbook: the ranked list with profile links and blank column
 
 ## Defining a study
 
-One YAML file. [configs/template.yaml](configs/template.yaml) is a commented starting point, written as fitness in Spanish to show that nothing about the machinery is wedding-shaped or Dutch.
+In the browser, the program panel writes one: seed hashtags are found in the capture, a word is benched by clicking it, themes are modelled, and membership types are added as word lists. **Save program** writes the file below, and by hand it is the same file. [configs/template.yaml](configs/template.yaml) is a commented starting point, written as fitness in Spanish to show that nothing about the machinery is wedding-shaped or Dutch.
 
 ```yaml
 language: nl
@@ -135,7 +141,7 @@ monke_bars/          the package
   viz.py             matplotlib charts for the CLI
 app/streamlit_app.py the local dashboard
 web/                 the browser app, a port of the package
-  js/                ingest, text, corpus, lexical, accounts, findings, export
+  js/                ingest, text, corpus, lexical, accounts, findings, topics, export
   data/              generated by scripts/export_web_data.py
   tests/             node --test, synthetic records
 configs/             studies

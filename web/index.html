@@ -22,19 +22,18 @@
   </header>
 
   <main>
-    <!-- Intake: the whole first screen until a file arrives. -->
+    <!-- The whole first screen until a file arrives. -->
     <section id="intake">
       <label class="drop" id="drop">
-        <div class="big">Drop a capture to begin</div>
-        <div class="small">The platform is read from the file. Nothing to choose first.</div>
+        <div class="big">Load the bar</div>
+        <div class="small">Drop an NDJSON, CSV or Excel file. It stays in this browser tab.</div>
         <div class="exts"><span>ndjson</span><span>jsonl</span><span>csv</span><span>tsv</span><span>xlsx</span></div>
         <input type="file" id="file-input" multiple accept=".ndjson,.jsonl,.json,.csv,.tsv,.txt,.xlsx,.xls">
       </label>
       <p class="note" style="margin-top:22px">
-        The files are read inside this browser tab and are never uploaded. A spreadsheet needs only a
-        column of post text; likes, comments and dates are matched by name where they exist. Captures
-        from two platforms are refused in one analysis, because pooling them would rank two engagement
-        scales against each other.
+        Nothing is uploaded: the files are read inside this tab. The platform is read from the file, and a
+        spreadsheet needs only a column of post text. Captures from two platforms are refused in one session,
+        because pooling them would rank two engagement scales against each other.
       </p>
     </section>
 
@@ -42,42 +41,57 @@
       <div id="files"></div>
       <div id="mapping"></div>
       <div id="progress" class="progress" hidden>
+        <div class="gym">Warming up</div>
         <div class="bar"><div class="fill" id="progress-fill"></div></div>
         <p class="note" id="progress-text"></p>
       </div>
-      <div class="btns"><button class="btn small" id="reset" type="button">Start over with other files</button></div>
     </section>
 
     <section id="work" hidden>
-      <div class="section">Settings</div>
-      <p class="note">The capture is read once. These only filter it, so a change applies at once.</p>
-      <div class="grid three">
-        <label class="field"><span>Study</span><select id="study"></select></label>
-        <label class="field" id="study-upload-wrap" hidden><span>Study file (YAML)</span>
-          <input type="file" id="study-upload" accept=".yaml,.yml"></label>
-      </div>
-      <div class="grid settings">
-        <div>
-          <span class="label" id="lang-label">Languages</span>
-          <div class="toggles" id="langs" role="group" aria-labelledby="lang-label"></div>
-          <div class="toggle-tools">
-            <button class="linkish" type="button" data-langs="all">every language</button>
-            <button class="linkish" type="button" data-langs="study">the study's own</button>
-          </div>
+      <!-- The rack: what is in the session, on one line. -->
+      <div class="rack">
+        <div class="rack-line">
+          <span class="gym">The rack</span>
+          <span id="rack-summary"></span>
         </div>
-        <label class="field"><span>Posted from</span><input type="date" id="since"></label>
-        <label class="field"><span>Posted until</span><input type="date" id="until"></label>
+        <div class="rack-actions">
+          <button class="btn small" type="button" id="rack-toggle" aria-expanded="false" aria-controls="rack-panel">Edit the rack</button>
+          <details class="menu" id="export-menu">
+            <summary class="btn small primary">Export</summary>
+            <div class="menu-list" id="export-list"></div>
+          </details>
+          <button class="btn small" id="reset" type="button">New file</button>
+        </div>
       </div>
-
-      <div style="margin-top:28px" id="summary"></div>
+      <div id="rack-panel" class="rack-panel" hidden>
+        <p class="plain">What is in, what is out. The file is read once, so every change here applies at once.</p>
+        <div class="grid settings">
+          <div>
+            <span class="label" id="lang-label">Languages</span>
+            <div class="toggles" id="langs" role="group" aria-labelledby="lang-label"></div>
+            <div class="toggle-tools" id="lang-tools"></div>
+          </div>
+          <label class="field"><span>Posted from</span><input type="date" id="since"></label>
+          <label class="field"><span>Posted until</span><input type="date" id="until"></label>
+        </div>
+      </div>
       <div id="warnings"></div>
 
-      <nav class="views" role="tablist" aria-label="View">
-        <button role="tab" data-view="report" aria-selected="true">Report</button>
-        <button role="tab" data-view="accounts" aria-selected="false">Accounts</button>
-        <button role="tab" data-view="workbench" aria-selected="false">Workbench</button>
-      </nav>
-      <div id="view"></div>
+      <div class="layout">
+        <details class="program" id="program" open>
+          <summary class="gym">Program <span class="plain-inline">the saved setup</span></summary>
+          <div id="program-body"></div>
+        </details>
+        <div class="results">
+          <nav class="views" role="tablist" aria-label="View">
+            <button role="tab" data-view="session" aria-selected="true">Session<small>overview</small></button>
+            <button role="tab" data-view="reps" aria-selected="false">Reps<small>words</small></button>
+            <button role="tab" data-view="members" aria-selected="false">Members<small>accounts</small></button>
+            <button role="tab" data-view="log" aria-selected="false">Training log<small>posts</small></button>
+          </nav>
+          <div id="view"></div>
+        </div>
+      </div>
     </section>
   </main>
 
