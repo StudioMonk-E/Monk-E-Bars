@@ -257,17 +257,25 @@ details.panel > .inner { padding: 0 16px 16px; }
 .section .plain-inline { margin-left: 12px; }
 .progress .gym { margin-bottom: 10px; }
 
-/* ---- the rack ---- */
-.rack {
-  display: flex; justify-content: space-between; align-items: center; gap: 14px 20px; flex-wrap: wrap;
-  border: 2px solid var(--ink); background: var(--paper-2); padding: 12px 16px; margin-top: 8px;
+/* ---- the deck ----
+   The views, the scope and the exports in one bar that follows the page down,
+   so switching view never means scrolling back to the top. */
+.deck {
+  position: sticky; top: 0; z-index: 30; background: var(--paper);
+  border-bottom: 3px solid var(--ink); margin-top: 8px; padding-top: 2px;
 }
-.rack-line { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; min-width: 0; }
-#rack-summary { font: 13px/1.5 var(--mono); color: var(--ink-text); overflow-wrap: anywhere; }
-#rack-summary b { color: var(--ink); font-weight: 500; }
+.deck-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.deck-top .views { border-bottom: none; margin: 0; flex: 1 1 auto; }
+.deck-rack {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border-top: 1px solid var(--rule); padding: 8px 0; min-width: 0;
+}
+#rack-summary { font: 13px/1.5 var(--mono); color: var(--ink-text); overflow-wrap: anywhere; flex: 1 1 14rem; }
+#rack-summary b { color: var(--ink); font-weight: 500; white-space: nowrap; }
 #rack-summary .lift { color: var(--gold); }
-.rack-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .rack-panel { border: 2px solid var(--ink); border-top: none; padding: 18px 16px 22px; }
+.rack-panel .file:first-of-type { margin-top: 18px; }
+@media (max-width: 760px) { .deck { position: static; } }
 
 .menu { position: relative; }
 .menu > summary { list-style: none; display: inline-flex; align-items: center; }
@@ -373,3 +381,39 @@ td select { min-height: 32px; padding: 4px 8px; font-size: 12px; width: auto; ma
 
 .coach textarea { font: 15px/1.5 var(--body); min-height: 70px; margin-top: 12px; }
 .coach .btns { margin-top: 10px; }
+
+/* ---- moving inside a long view ---- */
+.jump {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 12px 0 2px; border-bottom: 1px solid var(--rule);
+}
+.jump .gym { margin-right: 4px; }
+.jump button {
+  background: none; border: 1px solid var(--rule); color: var(--muted); cursor: pointer;
+  font: 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; padding: 7px 9px; min-height: 32px;
+}
+.jump button:hover { border-color: var(--ink); color: var(--ink); }
+/* Clear of the sticky deck when a jump link lands on a section. */
+.section { scroll-margin-top: 150px; }
+
+/* A filter the page put on itself says so, and offers the way back. */
+.filterchip {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border: 2px solid var(--gold); background: var(--paper-2); padding: 10px 14px; margin-top: 18px;
+}
+.filterchip .what { font: 13px/1.4 var(--mono); color: var(--ink); }
+.filterchip .what b { color: var(--gold); }
+
+/* Once a file is in, the masthead has said what it had to say and gives its
+   room to the work. */
+body.working .page { padding-top: 20px; }
+body.working h1 { font-size: clamp(22px, 3vw, 27px); margin-top: 10px; }
+body.working .tagline { display: none; }
+body.working .rule { height: 4px; margin: 14px 0 0; }
+
+.warn { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; }
+.warn button.dismiss {
+  flex: none; background: none; border: 1px solid var(--rule); color: var(--muted);
+  font: 13px/1 var(--mono); cursor: pointer; padding: 6px 9px; min-height: 30px;
+}
+.warn button.dismiss:hover { border-color: var(--ink); color: var(--ink); }

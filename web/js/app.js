@@ -102,7 +102,7 @@ const S = {
   view: "session", acc: null,
   kTarget: null, kRef: "the rest",
   log: { q: "", weight: "" },
-  sorts: {},
+  sorts: {}, dismissed: new Set(),
   version: 0,          // a new file or a loaded program resets what depends on it
 };
 let memo = { key: null };
@@ -150,9 +150,9 @@ async function onFiles(fileList) {
   $("#intake").hidden = true;
   $("#loaded").hidden = false;
   $("#work").hidden = true;
-  $("#files").innerHTML = `<p class="note">Reading ${files.length} file${files.length > 1 ? "s" : ""}.</p>`;
+  $("#reading").innerHTML = `<p class="note">Reading ${files.length} file${files.length > 1 ? "s" : ""}.</p>`;
   try { S.files = await Promise.all(files.map(readFile)); }
-  catch (e) { $("#files").innerHTML = `<div class="warn">A file could not be read: ${esc(e.message)}</div>`; return; }
+  catch (e) { $("#reading").innerHTML = `<div class="warn">A file could not be read: ${esc(e.message)}</div>`; return; }
   S.mapping = {};
   renderFiles();
   if (S.files.some((f) => !f.ok)) return;
@@ -163,8 +163,13 @@ async function onFiles(fileList) {
 const shortName = (n) => n.replace(/\.[a-z]+$/i, "").replace(/^#/, "").slice(0, 28);
 
 function renderFiles() {
-  $("#files").innerHTML = S.files.map((f) => `<div class="file"><span class="mark ${f.ok ? (f.kind === "table" ? "table" : "") : "bad"}"></span>`
+  const html = S.files.map((f) => `<div class="file"><span class="mark ${f.ok ? (f.kind === "table" ? "table" : "") : "bad"}"></span>`
     + `<span><b>${esc(f.name)}</b> &nbsp;/&nbsp; ${esc(f.note)}</span></div>`).join("");
+  // A file that cannot be read has to be seen straight away; the rest belong in
+  // the rack, where they stop taking the top of the page once they are read.
+  const bad = S.files.some((f) => !f.ok);
+  $("#reading").innerHTML = bad ? html : "";
+  $("#files").innerHTML = bad ? "" : html;
 }
 
 const MAP_FIELDS = [
@@ -215,8 +220,8 @@ async function buildFull() {
       if (lift) seeds.push(lift);
       return own;
     });
-  } catch (e) { $("#files").insertAdjacentHTML("beforeend", `<div class="warn">${esc(e.message)}</div>`); return; }
-  if (!posts.length) { $("#files").insertAdjacentHTML("beforeend", `<div class="warn">No posts could be read from these files.</div>`); return; }
+  } catch (e) { $("#reading").insertAdjacentHTML("beforeend", `<div class="warn">${esc(e.message)}</div>`); return; }
+  if (!posts.length) { $("#reading").insertAdjacentHTML("beforeend", `<div class="warn">No posts could be read from these files.</div>`); return; }
 
   S.raw = posts.length;
   S.platforms = [...new Set(posts.map((p) => p.platform))].sort();
@@ -241,6 +246,7 @@ async function buildFull() {
   S.full = full;
   S.sources = [...new Set(full.map((p) => p.source))];
   $("#progress").hidden = true;
+  document.body.classList.add("working");
 
   S.present = languageCounts(full);
   const times = full.map((p) => p.timestamp).filter(Boolean).sort();
@@ -639,15 +645,19 @@ function wireProgram() {
 function render() {
   const { posts, results } = current();
   const p = S.program;
+  // A problem stays put; a thing worth knowing once can be dismissed.
   const warn = [];
-  if (!posts.length) warn.push(S.langs.size ? "Nothing is left in the rack. Widen the languages or the dates."
-    : "No language is selected, so nothing is left.");
-  else if (posts.every((x) => !x.engagement_score)) warn.push("Every post scores zero engagement, so the weight classes "
-    + "carry no information. A likes or comments column fixes that, and until then the word views are the ones to read.");
-  if (S.platforms && S.platforms.length > 1) warn.push(`This session holds ${S.platform}. Weight classes are cut inside each `
-    + "platform, because likes on one are not likes on the other, and an account posting on both comes back as one member "
-    + "with both platforms named.");
-  $("#warnings").innerHTML = warn.map((w) => `<div class="warn">${esc(w)}</div>`).join("");
+  if (!posts.length) warn.push({ text: S.langs.size ? "Nothing is left in the rack. Widen the languages or the dates."
+    : "No language is selected, so nothing is left." });
+  else if (posts.every((x) => !x.engagement_score)) warn.push({ text: "Every post scores zero engagement, so the weight "
+    + "classes carry no information. A likes or comments column fixes that, and until then the word views are the ones to read." });
+  if (S.platforms && S.platforms.length > 1) warn.push({ key: "mixed", text: `This session holds ${S.platform}. Weight classes `
+    + "are cut inside each platform, because likes on one are not likes on the other, and an account posting on both comes "
+    + "back as one member with both platforms named." });
+  $("#warnings").innerHTML = warn.filter((w) => !w.key || !S.dismissed.has(w.key))
+    .map((w) => `<div class="warn"><span>${esc(w.text)}</span>${w.key
+      ? `<button class="dismiss" type="button" data-dismiss="${esc(w.key)}" aria-label="Dismiss">got it</button>` : ""}</div>`).join("");
+  $$("[data-dismiss]").forEach((b) => b.addEventListener("click", () => { S.dismissed.add(b.dataset.dismiss); render(); }));
 
   $$(".views [data-view=sets]").forEach((b) => b.remove());
   if (S.sources.length > 1) {
@@ -662,24 +672,54 @@ function render() {
   const view = $("#view");
   if (!results) { view.innerHTML = ""; renderExport(); return; }
   renderExport();
+  const changed = S.view !== S.lastView;
   if (S.view === "session") view.innerHTML = sessionView();
   else if (S.view === "reps") view.innerHTML = repsView();
-  else if (S.view === "members") { renderMembers(view); return wireView(); }
+  else if (S.view === "members") { renderMembers(view); wireView(); buildJump(); return settle(changed); }
   else if (S.view === "sets") view.innerHTML = setsView();
   else view.innerHTML = logView();
-  wireView();
+  wireView(); buildJump(); settle(changed);
+}
+
+/** A view that has just replaced another starts at its own top, rather than
+ *  wherever the last one had been scrolled to. */
+function settle(changed) {
+  if (!changed) return;
+  S.lastView = S.view;
+  const top = $(".results").getBoundingClientRect().top + scrollY - ($("#deck").offsetHeight + 24);
+  if (scrollY > top) scrollTo({ top, behavior: "instant" });
+}
+
+/** Section links for a view long enough to need them. Built from what was
+ *  rendered, so a view never has to list its own sections twice. */
+function buildJump() {
+  const sections = $$("#view .section");
+  const box = $("#jump");
+  if (sections.length < 3) { box.innerHTML = ""; return; }
+  sections.forEach((el, i) => { el.id = el.id || `sec-${i}`; });
+  box.innerHTML = `<span class="gym">On this page</span>`
+    + sections.map((el) => `<button type="button" data-jump="${el.id}">${esc(el.textContent.trim())}</button>`).join("");
+  $$("[data-jump]", box).forEach((b) => b.addEventListener("click", () => {
+    document.getElementById(b.dataset.jump).scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
 }
 
 /** One listener for everything a rendered view offers. */
 function wireView() {
   const view = $("#view");
   $$("[data-word]", view).forEach((b) => b.addEventListener("click", () => {
-    S.log = { q: b.dataset.word, weight: "" }; S.view = "log"; render();
+    // Where the word was clicked, so the log can offer the way back.
+    S.log = { q: b.dataset.word, weight: "", from: S.view, fromWord: b.dataset.word };
+    S.view = "log"; render();
   }));
   $$("[data-bench]", view).forEach((b) => b.addEventListener("click", () => {
     S.program.stopwords_extra = [...new Set([...S.program.stopwords_extra, b.dataset.bench.toLowerCase()])];
     programChanged();
   }));
+  $("#log-clear", view)?.addEventListener("click", () => { S.log = { q: "", weight: S.log.weight }; render(); });
+  $("#log-back", view)?.addEventListener("click", () => {
+    const back = S.log.from; S.log = { q: "", weight: "" }; S.view = back; render();
+  });
   $$("[data-sort]", view).filter((b) => !b.closest("#member-results")).forEach((b) => b.addEventListener("click", () => {
     const id = b.dataset.sort, key = b.dataset.key, cur = S.sorts[id];
     S.sorts[id] = { key, dir: cur && cur.key === key && cur.dir === "desc" ? "asc" : "desc" };
@@ -960,6 +1000,11 @@ function logView() {
   const cols = ["engagement_rank", "engagement_tier", ...(S.sources.length > 1 ? ["source"] : []), "language",
     "author_handle", "caption_text", "like_count", "comment_count", "engagement_score", "timestamp", "url"];
   let h = section("Training log", "Every post in the rack, with the numbers behind its class.");
+  if (S.log.fromWord && S.log.q === S.log.fromWord) {
+    h += `<div class="filterchip"><span class="what">Posts using <b>${esc(S.log.fromWord)}</b></span>
+      <button class="btn small" type="button" id="log-clear">Show every post</button>
+      ${S.log.from && S.log.from !== "log" ? `<button class="btn small" type="button" id="log-back">Back to ${esc(S.log.from === "reps" ? "reps" : S.log.from)}</button>` : ""}</div>`;
+  }
   h += `<div class="table-tools">
     <label class="field"><span>Search captions and handles</span><input type="text" id="log-q" value="${esc(S.log.q)}" placeholder="word or handle"></label>
     <label class="field narrow"><span>Weight class</span><select id="log-weight">
@@ -1098,8 +1143,9 @@ function wire() {
     Object.assign(S, { files: [], full: null, mapping: {}, sources: [] });
     memo = { key: null }; accMemo = { key: null };
     input.value = "";
+    document.body.classList.remove("working");
     $("#intake").hidden = false; $("#loaded").hidden = true; $("#work").hidden = true;
-    $("#files").innerHTML = ""; $("#mapping").innerHTML = "";
+    $("#files").innerHTML = ""; $("#mapping").innerHTML = ""; $("#reading").innerHTML = "";
   });
 
   const rackToggle = $("#rack-toggle");
@@ -1140,7 +1186,7 @@ function wire() {
     if (menu.open && !menu.contains(e.target)) menu.open = false;
   });
   document.addEventListener("input", (e) => {
-    if (e.target.id === "log-q") { S.log.q = e.target.value; render(); $("#log-q").focus(); }
+    if (e.target.id === "log-q") { S.log.q = e.target.value; S.log.fromWord = null; render(); $("#log-q").focus(); }
   });
   document.addEventListener("change", (e) => {
     if (e.target.id === "log-weight") { S.log.weight = e.target.value; render(); }

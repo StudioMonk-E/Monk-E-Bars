@@ -38,8 +38,7 @@
     </section>
 
     <section id="loaded" hidden>
-      <div id="files"></div>
-      <div id="mapping"></div>
+      <div id="reading"></div>
       <div id="progress" class="progress" hidden>
         <div class="gym">Warming up</div>
         <div class="bar"><div class="fill" id="progress-fill"></div></div>
@@ -48,23 +47,30 @@
     </section>
 
     <section id="work" hidden>
-      <!-- The rack: what is in the session, on one line. -->
-      <div class="rack">
-        <div class="rack-line">
-          <span class="gym">The rack</span>
-          <span id="rack-summary"></span>
-        </div>
-        <div class="rack-actions">
-          <button class="btn small" type="button" id="rack-toggle" aria-expanded="false" aria-controls="rack-panel">Edit the rack</button>
+      <!-- The deck: the views, the scope and the exports, kept in reach. -->
+      <div class="deck" id="deck">
+        <div class="deck-top">
+          <nav class="views" role="tablist" aria-label="View">
+            <button role="tab" data-view="session" aria-selected="true">Session<small>overview</small></button>
+            <button role="tab" data-view="reps" aria-selected="false">Reps<small>words</small></button>
+            <button role="tab" data-view="members" aria-selected="false">Members<small>accounts</small></button>
+            <button role="tab" data-view="log" aria-selected="false">Training log<small>posts</small></button>
+          </nav>
           <details class="menu" id="export-menu">
             <summary class="btn small primary">Export</summary>
             <div class="menu-list" id="export-list"></div>
           </details>
+        </div>
+        <div class="deck-rack">
+          <button class="btn small" type="button" id="rack-toggle" aria-expanded="false" aria-controls="rack-panel">The rack</button>
+          <span id="rack-summary"></span>
           <button class="btn small" id="reset" type="button">New file</button>
         </div>
       </div>
       <div id="rack-panel" class="rack-panel" hidden>
         <p class="plain">What is in, what is out. The file is read once, so every change here applies at once.</p>
+        <div id="files"></div>
+        <div id="mapping"></div>
         <div class="grid settings">
           <div>
             <span class="label" id="lang-label">Languages</span>
@@ -83,12 +89,7 @@
           <div id="program-body"></div>
         </details>
         <div class="results">
-          <nav class="views" role="tablist" aria-label="View">
-            <button role="tab" data-view="session" aria-selected="true">Session<small>overview</small></button>
-            <button role="tab" data-view="reps" aria-selected="false">Reps<small>words</small></button>
-            <button role="tab" data-view="members" aria-selected="false">Members<small>accounts</small></button>
-            <button role="tab" data-view="log" aria-selected="false">Training log<small>posts</small></button>
-          </nav>
+          <div id="jump"></div>
           <div id="view"></div>
         </div>
       </div>
