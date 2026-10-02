@@ -142,6 +142,19 @@ def test_findings_survive_a_tier_that_overuses_nothing():
     assert any(f.kind == "keyness" for f in findings.generate(corpus, cfg))
 
 
+def test_ngrams_match_what_the_library_returned():
+    """Tuples of consecutive tokens, and nothing from a run too short to fill one.
+
+    These were nltk.util.bigrams and trigrams until the package stopped carrying
+    NLTK for four lines of work. The shape has to stay identical, since every
+    phrase count in every study is built on it.
+    """
+    assert text.bigrams(["a", "b", "c"]) == [("a", "b"), ("b", "c")]
+    assert text.trigrams(["a", "b", "c", "d"]) == [("a", "b", "c"), ("b", "c", "d")]
+    assert text.bigrams(["a"]) == [] and text.trigrams(["a", "b"]) == []
+    assert text.ngrams([], 2) == []
+
+
 def test_dotted_mentions_leave_no_word_behind():
     """"@avec.naomi" is one handle. Stopping at the dot left "naomi" as a word."""
     assert text.normalize("bowl by @avec.naomi in brighton") == ["bowl", "by", "in", "brighton"]

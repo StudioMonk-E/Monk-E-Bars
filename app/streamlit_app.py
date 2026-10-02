@@ -44,21 +44,6 @@ branding.inject_css(st)
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs"
 
-# A hosted container starts with no NLTK data and an empty disk, so the tokeniser
-# fetch would otherwise run inside the first analysis and look like a hang.
-# Warming it here moves the wait to startup, and a failure is harmless because
-# the regex tokeniser takes over.
-@st.cache_resource(show_spinner=False)
-def _warm_tokeniser() -> bool:
-    from monke_bars.text import ensure_nltk
-    try:
-        return ensure_nltk()
-    except Exception:
-        return False
-
-
-_warm_tokeniser()
-
 # Language detection runs at roughly a second per hundred posts on a laptop and
 # slower on a shared instance, so a hosted copy caps the corpus and says so.
 # Unset it to lift the cap when running locally.

@@ -13,7 +13,6 @@ import re
 from functools import lru_cache
 
 import contractions
-from nltk.util import bigrams as _bigrams, trigrams as _trigrams
 
 # Runs of letters in any script. Digits and underscores are excluded, which is
 # what keeps a decorative "_____" line and a trailing "fotografie_" out of the
@@ -22,7 +21,12 @@ _WORD_RE = re.compile(r"[^\W\d_]+")
 
 
 def ensure_nltk() -> bool:
-    """Kept for callers that warm the tokeniser. Nothing needs downloading now."""
+    """Kept for callers that warm the tokeniser. Nothing needs downloading now.
+
+    The package carried NLTK for its tokeniser and later for two n-gram helpers.
+    The tokeniser is a regex now and the helpers are four lines below, so nothing
+    is downloaded, nothing is imported at startup, and a corpus reads the same.
+    """
     return False
 
 
@@ -152,9 +156,14 @@ def content_tokens(caption: str, stopwords) -> list[str]:
     return [t for t in normalize(caption) if t not in stopwords and len(t) > 1]
 
 
+def ngrams(tokens, n: int) -> list[tuple]:
+    """Every run of ``n`` consecutive tokens, in order."""
+    return [tuple(tokens[i:i + n]) for i in range(len(tokens) - n + 1)]
+
+
 def bigrams(tokens):
-    return list(_bigrams(tokens))
+    return ngrams(tokens, 2)
 
 
 def trigrams(tokens):
-    return list(_trigrams(tokens))
+    return ngrams(tokens, 3)

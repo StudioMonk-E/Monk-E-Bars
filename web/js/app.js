@@ -20,6 +20,8 @@ import { discoverThemes } from "./topics.js";
 import * as A from "./accounts.js";
 import { generate, setLanguageNames, langName } from "./findings.js";
 import { accountsWorkbook, postsWorkbook, profileUrl } from "./export.js";
+import { looksLikeExport, readZip, buildAccountData } from "./account.js";
+import * as G from "./gains.js";
 
 // Pinned, so an analysis cannot change underneath a program between visits.
 const LIB = {
@@ -28,6 +30,8 @@ const LIB = {
   // two published vulnerabilities in its parser.
   xlsx: "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs",
   yaml: "https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.mjs",
+  // Reads the JSON out of an export zip and leaves the media compressed.
+  fflate: "https://cdn.jsdelivr.net/npm/fflate@0.8.2/+esm",
 };
 const libs = {};
 const lib = (name) => (libs[name] ??= import(LIB[name]));
@@ -103,6 +107,8 @@ const S = {
   kTarget: null, kRef: "the rest",
   log: { q: "", weight: "" },
   sorts: {}, dismissed: new Set(),
+  account: null,      // an account's own export: follows and what it did
+  gains: { window: 2, lookback: 6 },
   version: 0,          // a new file or a loaded program resets what depends on it
 };
 let memo = { key: null };
@@ -122,8 +128,17 @@ function recall() {
 // --- intake ------------------------------------------------------------------
 
 const TABLE_EXT = /\.(csv|tsv|txt|xlsx|xls)$/i;
+const ZIP_EXT = /\.zip$/i;
 
 async function readFile(file) {
+  // An account's own export: a zip from either platform, or its JSON files.
+  if (ZIP_EXT.test(file.name)) {
+    const parts = await readZip(file, await lib("fflate"));
+    const useful = parts.filter((p) => looksLikeExport(p.data));
+    return { name: file.name, kind: "export", platform: "export", parts: useful, ok: useful.length > 0,
+      note: useful.length ? `Account export, ${useful.length} file${useful.length > 1 ? "s" : ""} read.`
+        : "Zip with no follower or activity JSON in it." };
+  }
   if (TABLE_EXT.test(file.name)) {
     const XLSX = await lib("xlsx");
     const binary = /\.xlsx?$/i.test(file.name);
@@ -138,8 +153,16 @@ async function readFile(file) {
   const text = await file.text();
   const head = text.trimStart();
   let records;
-  if (head.startsWith("[")) { try { records = JSON.parse(head); } catch { records = []; } }
-  else records = parseNdjson(text);
+  if (head.startsWith("[") || head.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(head);
+      if (looksLikeExport(parsed)) {
+        return { name: file.name, kind: "export", platform: "export", parts: [{ path: file.name, data: parsed }],
+          ok: true, note: "Account export." };
+      }
+      records = Array.isArray(parsed) ? parsed : parseNdjson(text);
+    } catch { records = parseNdjson(text); }
+  } else records = parseNdjson(text);
   const d = detect(records);
   return { name: file.name, kind: d.kind, platform: d.platform, note: d.note, records, ok: d.kind === "zeeschuimer" };
 }
@@ -210,10 +233,27 @@ function mainLift(posts) {
 
 /** Parse, tag by file, detect language once, deduplicate. The one slow step. */
 async function buildFull() {
+  const exports_ = S.files.filter((f) => f.kind === "export");
+  S.account = exports_.length ? buildAccountData(exports_.flatMap((f) => f.parts)) : null;
+  if (S.account && !S.account.follows.length) S.account = null;
+  const captures = S.files.filter((f) => f.kind !== "export");
+  if (!captures.length) {
+    // An export on its own: there is no corpus to read, only gains.
+    $("#progress").hidden = true;
+    document.body.classList.add("working");
+    S.full = []; S.raw = 0; S.platforms = []; S.platform = "account export"; S.sources = [];
+    S.present = []; S.lo = ""; S.hi = "";
+    if (!S.program) { recall(); if (!S.program) S.program = blankProgram(); }
+    resetForNewData();
+    S.view = "gains";
+    $("#work").hidden = false;
+    renderRack(); renderProgram(); render();
+    return;
+  }
   let posts, seeds = [];
   try {
-    const firstTable = S.files.findIndex((f) => f.kind === "table");
-    posts = S.files.flatMap((f, i) => {
+    const firstTable = captures.findIndex((f) => f.kind === "table");
+    posts = captures.flatMap((f, i) => {
       const own = (f.kind === "table" ? parseTable(f.rows, f.name, i === firstTable ? S.mapping : {}) : parseRecords(f.records, f.platform))
         .map((p) => ({ ...p, source: shortName(f.name) }));
       const lift = mainLift(own);
@@ -410,6 +450,13 @@ function runFilters(extra = {}) {
 function renderRackSummary() {
   const { posts } = current();
   const p = S.program;
+  if (!S.full.length && S.account) {
+    const sum = G.summary(S.account.follows, S.account.events);
+    $("#rack-summary").innerHTML = `account export &nbsp;/&nbsp; <b>${fmt(sum.follows)} followers</b>`
+      + ` &nbsp;/&nbsp; ${esc(fmtDay(sum.from))} to ${esc(fmtDay(sum.to))}`
+      + ` &nbsp;/&nbsp; ${fmt(sum.events)} posts and comments`;
+    return;
+  }
   const langs = [...S.langs].map(langName);
   const shownLangs = langs.length === S.present.length ? "every language" : langs.slice(0, 3).join(", ") + (langs.length > 3 ? ` +${langs.length - 3}` : "");
   const lift = p.query_hashtags.length ? `<span class="lift">${esc(p.query_hashtags.slice(0, 3).join(" "))}</span> &nbsp;/&nbsp; ` : "";
@@ -647,9 +694,11 @@ function render() {
   const p = S.program;
   // A problem stays put; a thing worth knowing once can be dismissed.
   const warn = [];
-  if (!posts.length) warn.push({ text: S.langs.size ? "Nothing is left in the rack. Widen the languages or the dates."
+  // An export-only session has no corpus to be empty, so the corpus warnings
+  // would only be noise.
+  if (!posts.length && S.full.length) warn.push({ text: S.langs.size ? "Nothing is left in the rack. Widen the languages or the dates."
     : "No language is selected, so nothing is left." });
-  else if (posts.every((x) => !x.engagement_score)) warn.push({ text: "Every post scores zero engagement, so the weight "
+  else if (posts.length && posts.every((x) => !x.engagement_score)) warn.push({ text: "Every post scores zero engagement, so the weight "
     + "classes carry no information. A likes or comments column fixes that, and until then the word views are the ones to read." });
   if (S.platforms && S.platforms.length > 1) warn.push({ key: "mixed", text: `This session holds ${S.platform}. Weight classes `
     + "are cut inside each platform, because likes on one are not likes on the other, and an account posting on both comes "
@@ -658,6 +707,15 @@ function render() {
     .map((w) => `<div class="warn"><span>${esc(w.text)}</span>${w.key
       ? `<button class="dismiss" type="button" data-dismiss="${esc(w.key)}" aria-label="Dismiss">got it</button>` : ""}</div>`).join("");
   $$("[data-dismiss]").forEach((b) => b.addEventListener("click", () => { S.dismissed.add(b.dataset.dismiss); render(); }));
+
+  $$(".views [data-view=gains]").forEach((b) => b.remove());
+  if (S.account) {
+    const btn = document.createElement("button");
+    btn.setAttribute("role", "tab"); btn.dataset.view = "gains";
+    btn.innerHTML = `Gains<small>followers</small>`;
+    btn.addEventListener("click", () => { S.view = "gains"; render(); });
+    $(".views").append(btn);
+  } else if (S.view === "gains") S.view = "session";
 
   $$(".views [data-view=sets]").forEach((b) => b.remove());
   if (S.sources.length > 1) {
@@ -668,11 +726,26 @@ function render() {
     $(".views").append(btn);
   } else if (S.view === "sets") S.view = "session";
 
-  $$(".views button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === S.view)));
+  // Views that read a corpus have nothing to show in an export-only session.
+  const corpusViews = ["session", "reps", "members", "log", "sets"];
+  $$(".views button").forEach((b) => {
+    b.hidden = !S.full.length && corpusViews.includes(b.dataset.view);
+    b.setAttribute("aria-selected", String(b.dataset.view === S.view));
+  });
   const view = $("#view");
-  if (!results) { view.innerHTML = ""; renderExport(); return; }
-  renderExport();
   const changed = S.view !== S.lastView;
+  renderExport();
+  // The program describes how a corpus is read, which an export-only session has
+  // no use for.
+  $("#program").hidden = !S.full.length;
+  $(".layout").classList.toggle("alone", !S.full.length);
+  if (S.view === "gains" && S.account) {
+    view.innerHTML = gainsView();
+    wireView(); buildJump();
+    $("#gains-window")?.addEventListener("change", (e) => { S.gains.window = +e.target.value; render(); });
+    return settle(changed);
+  }
+  if (!results) { view.innerHTML = ""; return; }
   if (S.view === "session") view.innerHTML = sessionView();
   else if (S.view === "reps") view.innerHTML = repsView();
   else if (S.view === "members") { renderMembers(view); wireView(); buildJump(); return settle(changed); }
@@ -1078,12 +1151,99 @@ function setsView() {
   return h;
 }
 
+// --- gains: an account's own followers ---------------------------------------
+
+const fmtDay = (ts) => new Date(ts).toISOString().slice(0, 10);
+const fmtHour = (ts) => `${fmtDay(ts)} ${String(new Date(ts).getUTCHours()).padStart(2, "0")}:00`;
+
+function gainsView() {
+  const { follows, events } = S.account;
+  const sum = G.summary(follows, events);
+  const days = G.daily(follows);
+  const found = G.spikes(follows);
+  const moves = G.stimulus(events, follows, { windowHours: S.gains.window });
+
+  let h = section("Gains", "Followers arriving, by the day they arrived. An export carries the moment each one followed, "
+    + "which is the only record of timing either platform gives an account about itself.");
+  h += `<div class="grid metrics">${[
+    ["followers in the export", fmt(sum.follows)], ["days covered", fmt(sum.days)],
+    ["a day, on average", fmt(sum.perDay)], ["last 30 days", fmt(sum.last30)],
+  ].map(([k, v]) => `<div class="metric"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join("")}</div>`;
+
+  // The last stretch at a readable width, rather than every day since the account opened.
+  // A day at a time reads well over a month; over half a year it is 180 rows of
+  // ones and twos, and the week is the unit that shows the shape.
+  const byWeek = days.length > 60;
+  const series = (byWeek ? G.weekly(follows) : days).slice(-40);
+  h += bars(series.map((d) => ({ when: fmtDay(d.start), count: d.count })), "when", "count", { cls: "gainsbars" });
+  const unit = byWeek ? `Follows a week, the last ${series.length} weeks, each labelled by its Monday.`
+    : `Follows a day, the last ${series.length} days.`;
+  h += `<p class="plain">${unit} Quiet periods are drawn too.</p>`;
+  h += `<p class="plain">An export lists current followers only. Anyone who followed and has since left is absent, so the
+    further back a week sits, the thinner it reads.</p>`;
+
+  h += section("PRs", "Days when follows ran clearly above this account's own rate. A day has to beat the usual rate by "
+    + "half again, stand above its spread, and clear a floor, since two follows on a quiet account is not an event.");
+  if (!found.length) {
+    h += `<p class="plain">No day stands out above the rest of this period.</p>`;
+  } else {
+    const rows = found.slice(0, 40).map((sp) => {
+      const before = G.precedes(events, sp.peakStart + 2 * 3600e3, S.gains.lookback);
+      return { day: fmtDay(sp.day), follows: sp.follows, usual: sp.expected, times: sp.times,
+        busiest_hours: fmtHour(sp.peakStart), in_those_hours: sp.peakFollows,
+        what_came_first: before.length ? before.slice(0, 3).map((e) => e.label).join("; ") : "nothing in the export" };
+    });
+    h += table(rows, ["day", "follows", "usual", "times", "busiest_hours", "in_those_hours", "what_came_first"],
+      { id: "prs", numeric: ["follows", "usual", "times", "in_those_hours"], wrap: ["what_came_first"], sortable: true });
+  }
+
+  h += section("Stimulus", "Everything the account did, with the follows that arrived afterwards.");
+  h += `<div class="table-tools">
+    <label class="field narrow"><span>Window after an action</span><select id="gains-window">
+      ${[1, 2, 6, 24].map((n) => `<option value="${n}"${S.gains.window === n ? " selected" : ""}>${n} hour${n > 1 ? "s" : ""}</option>`).join("")}
+    </select></label></div>`;
+  if (!events.length) {
+    h += `<p class="plain">This export holds no posts or comments with timestamps, so there is nothing to read the
+      follows against. Instagram keeps those in its posts and comments files, TikTok in its activity file; adding them
+      to the same session fills this in.</p>`;
+  } else {
+    h += table(moves.slice(0, 200).map((e) => ({
+      when: fmtHour(e.ts), what: e.kind, detail: e.label + (e.note ? `, ${e.note}` : ""),
+      follows: e.follows, usual: e.expected, times: e.times, others_in_window: e.shared,
+    })), ["when", "what", "detail", "follows", "usual", "times", "others_in_window"],
+      { id: "stimulus", limit: 200, numeric: ["follows", "usual", "times", "others_in_window"], wrap: ["detail"], sortable: true });
+    h += `<p class="plain">This is correlation inside a window, and it is worth reading as such. Follows that land after a
+      comment on a large account are evidence the comment worked; they are not a path anyone traced. Where two actions
+      share a window, both rows carry the same follows, which the last column states.</p>`;
+  }
+  return h;
+}
+
 // --- export ------------------------------------------------------------------
 
 function exportItems() {
   const p = S.program;
   const { posts, results } = current();
-  return [
+  const items = [];
+
+  if (S.account) {
+    const { follows, events } = S.account;
+    items.push(["Gains", "CSV, every follower with the moment it followed", () => {
+      save(csv(follows.map((f) => ({ followed_at: new Date(f.ts).toISOString(), username: f.username })),
+        ["followed_at", "username"]), `${slug(p.name)}-gains.csv`, "text/csv");
+    }]);
+    items.push(["Stimulus", "CSV, each action with the follows that came after", () => {
+      const rows = G.stimulus(events, follows, { windowHours: S.gains.window }).map((e) => ({
+        when: new Date(e.ts).toISOString(), what: e.kind, detail: e.label, note: e.note || "",
+        follows_after: e.follows, usual_for_that_window: e.expected, times_usual: e.times, others_in_window: e.shared,
+      }));
+      save(csv(rows, ["when", "what", "detail", "note", "follows_after", "usual_for_that_window", "times_usual", "others_in_window"]),
+        `${slug(p.name)}-stimulus.csv`, "text/csv");
+    }]);
+  }
+  if (!results) return items;
+
+  return items.concat([
     ["Members list", "Excel, three sheets: the list, who missed weight, and the settings", async () => {
       const XLSX = await lib("xlsx");
       const members = allMembers();
@@ -1115,7 +1275,7 @@ function exportItems() {
       const out = { ...p }; delete out.file;
       save(dump(out, { lineWidth: 100, sortKeys: false }), `${slug(p.name)}.yaml`, "text/yaml");
     }],
-  ];
+  ]);
 }
 
 function renderExport() {

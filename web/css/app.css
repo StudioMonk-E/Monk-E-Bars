@@ -417,3 +417,5 @@ body.working .rule { height: 4px; margin: 14px 0 0; }
   font: 13px/1 var(--mono); cursor: pointer; padding: 6px 9px; min-height: 30px;
 }
 .warn button.dismiss:hover { border-color: var(--ink); color: var(--ink); }
+
+.layout.alone { grid-template-columns: minmax(0, 1fr); }

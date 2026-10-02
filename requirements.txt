@@ -1,7 +1,6 @@
 # Core analysis
 pandas>=1.5
 numpy>=1.23
-nltk>=3.8
 contractions>=0.1.73
 langdetect>=1.0.9
 scikit-learn>=1.2

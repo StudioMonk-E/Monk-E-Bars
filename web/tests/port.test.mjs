@@ -18,6 +18,8 @@ import * as A from "../js/accounts.js";
 import { generate, setLanguageNames } from "../js/findings.js";
 import { accountsWorkbook, prepareAccounts } from "../js/export.js";
 import { discoverThemes } from "../js/topics.js";
+import { readFollowers, looksLikeExport, buildAccountData } from "../js/account.js";
+import * as G from "../js/gains.js";
 
 const data = (f) => JSON.parse(fs.readFileSync(new URL(`../data/${f}`, import.meta.url), "utf8"));
 const SW = data("stopwords.json");
@@ -279,4 +281,79 @@ test("the workbook has its three sheets, blanks to fill in, and the caveats", ()
   assert.deepEqual(header.slice(-2), ["Checked", "Notes"]);
   const about = XLSX.utils.sheet_to_json(wb.Sheets["About this run"], { header: 1 });
   assert.ok(about.some((r) => r[0] === "Caveat" && /real people/.test(r[1])));
+});
+
+// --- an account's own export -------------------------------------------------
+
+test("follow timestamps are read from either platform's shape", () => {
+  // Instagram nests them; TikTok writes them flat and means UTC.
+  const ig = { relationships_followers: [
+    { string_list_data: [{ href: "https://instagram.com/a", value: "a", timestamp: 1_767_225_600 }] },
+    { string_list_data: [{ href: "https://instagram.com/b", value: "b", timestamp: 1_767_229_200 }] },
+  ] };
+  const tt = { Activity: { "Follower List": { FansList: [
+    { Date: "2026-01-01 00:00:00", UserName: "c" },
+    { Date: "2026-01-01 01:00:00", UserName: "@d" },
+  ] } } };
+  assert.deepEqual(readFollowers(ig).map((f) => f.username), ["a", "b"]);
+  assert.equal(readFollowers(ig)[0].ts, 1_767_225_600_000);
+  assert.deepEqual(readFollowers(tt).map((f) => f.username), ["c", "d"]);
+  assert.equal(readFollowers(tt)[0].ts, Date.UTC(2026, 0, 1));
+  assert.ok(looksLikeExport(ig) && looksLikeExport(tt));
+  // A capture is not an export, and must not be read as one.
+  assert.equal(looksLikeExport([{ source_platform: "instagram.com", data: { id: "1" } }]), false);
+});
+
+test("a follower list and a following list are told apart", () => {
+  const data = [
+    { path: "followers_1.json", data: { relationships_followers: [
+      { string_list_data: [{ value: "a", timestamp: 1_767_225_600 }] }] } },
+    { path: "following.json", data: { relationships_following: [
+      { string_list_data: [{ value: "z", timestamp: 1_767_225_600 }] }] } },
+  ];
+  assert.deepEqual(buildAccountData(data).follows.map((f) => f.username), ["a"]);
+});
+
+test("posts and comments come out as the stimulus behind a spike", () => {
+  const data = [{ path: "posts_1.json", data: [
+    { creation_timestamp: 1_767_225_600, title: "a caption", media: [{ uri: "p.jpg" }] }] },
+    { path: "post_comments_1.json", data: { comments_media_comments: [
+      { string_map_data: { Comment: { value: "lovely" }, "Media Owner": { value: "bigaccount" },
+        Time: { timestamp: 1_767_229_200 } } }] } }];
+  const { events } = buildAccountData(data);
+  assert.deepEqual(events.map((e) => e.kind), ["post", "comment"]);
+  assert.equal(events[1].label, "comment on @bigaccount");
+});
+
+test("a spike is measured against the account's own rate, not a flat number", () => {
+  const day = 86400e3, start = Date.UTC(2026, 0, 1);
+  const follows = [];
+  for (let d = 0; d < 40; d++) {            // two a day, every day
+    for (let i = 0; i < 2; i++) follows.push({ ts: start + d * day + i * 3600e3, username: `u${d}_${i}` });
+  }
+  for (let i = 0; i < 60; i++) follows.push({ ts: start + 30 * day + 14 * 3600e3 + i * 60e3, username: `v${i}` });
+  const found = G.spikes(follows);
+  assert.equal(found.length, 1);
+  assert.equal(new Date(found[0].day).toISOString().slice(0, 10), "2026-01-31");
+  assert.ok(found[0].times > 10, `expected a large multiple, got ${found[0].times}`);
+
+  // The same account at a steady rate has no spike at all.
+  assert.equal(G.spikes(follows.filter((f) => f.username.startsWith("u"))).length, 0);
+});
+
+test("an action carries the follows that came after it, and says when it shares them", () => {
+  const start = Date.UTC(2026, 0, 1);
+  const follows = [];
+  for (let d = 0; d < 20; d++) follows.push({ ts: start + d * 86400e3, username: `u${d}` });
+  for (let i = 0; i < 30; i++) follows.push({ ts: start + 10 * 86400e3 + 14 * 3600e3 + i * 60e3, username: `v${i}` });
+  const events = [
+    { ts: start + 10 * 86400e3 + 13.5 * 3600e3, kind: "comment", label: "comment on @big" },
+    { ts: start + 3 * 86400e3 + 12 * 3600e3, kind: "post", label: "a quiet post" },
+  ];
+  const [top, quiet] = G.stimulus(events, follows, { windowHours: 2 });
+  assert.equal(top.label, "comment on @big");
+  assert.equal(top.follows, 30);
+  assert.ok(top.times > 5);
+  assert.equal(top.shared, 0);
+  assert.equal(quiet.follows, 0);
 });

@@ -156,7 +156,9 @@ def _false_positive(rule: str, line: str) -> bool:
     if rule == "direct address":
         # Proper nouns containing the word: TikTok's feed is called the For You
         # page, which is a product name and not an address to the reader.
-        if re.search(r"For You page", line):
+        # Product names that contain the word: TikTok's feed, and what each
+        # platform calls the export it hands an account about itself.
+        if re.search(r"For You page|Download your (information|data)", line):
             return True
         # Sphinx cross-references, identifiers, and the stopword data block.
         return bool(re.search(r"(:func:|:mod:|:class:|_your|your_|\byours?elf\b\s+\w+\s+\w+)", line))
