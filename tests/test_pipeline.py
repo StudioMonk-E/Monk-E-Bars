@@ -305,6 +305,24 @@ def test_account_rollup_ranks_by_best_post_and_classifies():
     assert "Wedding business" in full[full["username"] == "mijnfotografie"].iloc[0]["excluded_because"]
 
 
+def test_followers_filter_from_both_ends():
+    """A band keeps the middle, and an unknown count is never excluded on."""
+    import pandas as pd
+    from monke_bars import accounts
+    rows = pd.DataFrame([
+        {"username": "small", "account_type": "Person", "best_engagement": 50, "followers": 800},
+        {"username": "micro", "account_type": "Person", "best_engagement": 50, "followers": 12_000},
+        {"username": "huge", "account_type": "Person", "best_engagement": 50, "followers": 900_000},
+        {"username": "unknown", "account_type": "Person", "best_engagement": 50, "followers": 0},
+    ])
+    kept = accounts.passing(rows, min_followers=2_000, max_followers=100_000)
+    assert list(kept["username"]) == ["micro", "unknown"]
+    out = accounts.apply_filters(rows, min_followers=2_000, max_followers=100_000)
+    reasons = dict(zip(out["username"], out["excluded_because"]))
+    assert reasons["small"] == "under 2000 followers"
+    assert reasons["huge"] == "at or over 100000 followers"
+
+
 def test_a_type_set_by_hand_beats_the_keyword_match():
     from monke_bars import accounts
     cfg = _acct_cfg()

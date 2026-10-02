@@ -82,6 +82,8 @@ def run_parameters(config, filters: dict, corpus_rows: int, raw_rows: int,
     ]
     if filters.get("min_followers"):
         rows.append(("Minimum followers", filters["min_followers"]))
+    if filters.get("max_followers") is not None:
+        rows.append(("Maximum followers", filters["max_followers"]))
     if filters.get("verified") is True:
         rows.append(("Verified", "verified accounts only"))
     elif filters.get("verified") is False:

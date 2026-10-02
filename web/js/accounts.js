@@ -229,7 +229,7 @@ export function buildAccounts(posts, config, now = new Date()) {
 
 /** Add `excluded_because` to every account. Nothing is dropped. */
 export function applyFilters(accounts, { types = null, verified = null, min_engagement = 0,
-  max_engagement = null, min_followers = 0, min_signals = null } = {}) {
+  max_engagement = null, min_followers = 0, max_followers = null, min_signals = null } = {}) {
   const hasCol = (c) => accounts.length && c in accounts[0];
   return accounts.map((row) => {
     const why = [];
@@ -237,12 +237,12 @@ export function applyFilters(accounts, { types = null, verified = null, min_enga
     if (verified != null && !!row.verified !== !!verified) why.push(verified ? "not verified" : "verified");
     if (min_engagement && row.best_engagement < min_engagement) why.push(`under ${min_engagement} engagement`);
     if (max_engagement != null && row.best_engagement >= max_engagement) why.push(`at or over ${max_engagement} engagement`);
-    if (min_followers) {
-      // Unknown followers cannot answer this, and excluding on a missing
-      // figure would empty an Instagram list silently.
-      const have = row.followers || 0;
-      if (have && have < min_followers) why.push(`under ${min_followers} followers`);
-    }
+    // Unknown followers cannot answer either of these, and excluding on a
+    // missing figure would empty an Instagram list silently, so an unknown
+    // count skips both tests.
+    const have = row.followers || 0;
+    if (min_followers && have && have < min_followers) why.push(`under ${min_followers} followers`);
+    if (max_followers != null && have && have >= max_followers) why.push(`at or over ${max_followers} followers`);
     for (const [name, threshold] of Object.entries(min_signals || {})) {
       const col = `signal_${name.toLowerCase()}`;
       if (hasCol(col) && row[col] < parseInt(threshold, 10)) why.push(`${name} score ${row[col]} under ${threshold}`);
@@ -265,6 +265,7 @@ export function audienceFilters(config, name) {
     min_engagement: parseInt(spec.min_engagement, 10) || 0,
     max_engagement: spec.max_engagement ?? null,
     min_followers: parseInt(spec.min_followers, 10) || 0,
+    max_followers: spec.max_followers ?? null,
     verified: spec.verified ?? null,
     min_signals: { ...(spec.min_signals || config.min_signals || {}) },
   };
@@ -279,6 +280,7 @@ export function describeAudience(config, name) {
   else if (f.verified === false) bits.push("not verified");
   if (f.min_engagement) bits.push(`at least ${f.min_engagement} engagement`);
   if (f.min_followers) bits.push(`at least ${f.min_followers} followers where known`);
+  if (f.max_followers != null) bits.push(`under ${f.max_followers} followers where known`);
   if (f.max_engagement != null) bits.push(`under ${f.max_engagement} engagement`);
   for (const [sig, n] of Object.entries(f.min_signals)) bits.push(`${sig} score ${n} or more`);
   return bits.length ? bits.join(", ") : "every account";

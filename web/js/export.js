@@ -60,6 +60,7 @@ export function runParameters(config, filters, corpusRows, rawRows, platform = "
     ["Minimum engagement", filters.min_engagement || 0],
   ];
   if (filters.min_followers) rows.push(["Minimum followers", filters.min_followers]);
+  if (filters.max_followers != null) rows.push(["Maximum followers", filters.max_followers]);
   if (filters.verified === true) rows.push(["Verified", "verified accounts only"]);
   if (filters.verified === false) rows.push(["Verified", "unverified accounts only"]);
   for (const [name, t] of Object.entries(filters.min_signals || {})) rows.push([`Minimum ${name} score`, t]);

@@ -240,10 +240,19 @@ test("an exclusion word vetoes a lookalike language", () => {
   assert.deepEqual(scored.map((p) => p.signal_dutch), [1, 0]);
 });
 
-test("a missing follower count never excludes an account", () => {
+test("a missing follower count never excludes an account, from either end", () => {
   const rows = [{ account_type: "x", best_engagement: 5, followers: 0 }, { account_type: "x", best_engagement: 5, followers: 10 }];
-  const out = A.applyFilters(rows, { min_followers: 100 });
-  assert.deepEqual(out.map((r) => r.excluded_because), ["", "under 100 followers"]);
+  assert.deepEqual(A.applyFilters(rows, { min_followers: 100 }).map((r) => r.excluded_because), ["", "under 100 followers"]);
+  assert.deepEqual(A.applyFilters(rows, { max_followers: 5 }).map((r) => r.excluded_because), ["", "at or over 5 followers"]);
+});
+
+test("a follower band keeps the middle", () => {
+  const rows = [800, 12_000, 900_000, 0].map((followers, i) => ({ username: `a${i}`, account_type: "x", best_engagement: 5, followers }));
+  const kept = A.passing(rows, { min_followers: 2_000, max_followers: 100_000 });
+  assert.deepEqual(kept.map((r) => r.followers), [12_000, 0]);
+  const c = cfg({ audiences: { Micro: { min_followers: 2_000, max_followers: 100_000 } } });
+  assert.equal(A.describeAudience(c, "Micro"),
+    "at least 2000 followers where known, under 100000 followers where known");
 });
 
 test("two platforms merge into one member, linked on its own platform", () => {

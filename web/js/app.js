@@ -901,7 +901,7 @@ function defaultMemberFilters(members) {
     version: S.version,
     hidden: new Set(want.length ? present.filter((t) => !want.includes(t)) : []),
     min_engagement: Math.min(p.min_engagement || 0, cap),
-    verified: null, min_followers: 0,
+    verified: null, min_followers: 0, max_followers: 0,
     min_signals: Object.fromEntries(signalNames(p).map((n) => [n, p.min_signals[n] || 0])),
     preset: null, q: "", platform: "",
   };
@@ -911,7 +911,10 @@ function memberFilters(members) {
   const f = S.acc;
   const present = [...new Set(members.map((a) => a.account_type))];
   return { types: present.filter((t) => !f.hidden.has(t)), verified: f.verified,
-    min_engagement: f.min_engagement, min_followers: f.min_followers, min_signals: f.min_signals };
+    min_engagement: f.min_engagement, min_followers: f.min_followers,
+    // Zero is off rather than a cap of none, since an account with no followers
+    // would otherwise be the only one left.
+    max_followers: f.max_followers || null, min_signals: f.min_signals };
 }
 
 function renderMembers(view) {
@@ -943,7 +946,10 @@ function renderMembers(view) {
     <option value=""${f.platform ? "" : " selected"}>both</option>
     ${S.platforms.map((x) => `<option${f.platform === x ? " selected" : ""}>${esc(x)}</option>`).join("")}
     <option value="__both"${f.platform === "__both" ? " selected" : ""}>on both platforms</option></select></label>`);
-  if (hasFollowers) extra.push(`<label class="field"><span>Minimum followers</span><input type="number" id="min-fol" min="0" step="100" value="${f.min_followers}"></label>`);
+  if (hasFollowers) {
+    extra.push(`<label class="field"><span>Minimum followers</span><input type="number" id="min-fol" min="0" step="100" value="${f.min_followers}"></label>`);
+    extra.push(`<label class="field"><span>Maximum followers, 0 for none</span><input type="number" id="max-fol" min="0" step="100" value="${f.max_followers}"></label>`);
+  }
   for (const n of signalNames(p)) {
     const max = signalMax(p.signals[n]);
     extra.push(`<label class="field"><span>Minimum ${esc(n)} score, <output id="sig-${esc(n)}">${f.min_signals[n] || 0}</output> of ${max}</span>
@@ -966,6 +972,7 @@ function renderMembers(view) {
   $("#verified", view).addEventListener("change", (e) => { f.verified = e.target.value === "" ? null : e.target.value === "1"; manual(); renderMemberResults(); });
   $("#member-platform", view)?.addEventListener("change", (e) => { f.platform = e.target.value; manual(); renderMemberResults(); });
   $("#min-fol", view)?.addEventListener("change", (e) => { f.min_followers = Math.max(0, parseInt(e.target.value, 10) || 0); manual(); renderMemberResults(); });
+  $("#max-fol", view)?.addEventListener("change", (e) => { f.max_followers = Math.max(0, parseInt(e.target.value, 10) || 0); manual(); renderMemberResults(); });
   $$("[data-signal]", view).forEach((el) => el.addEventListener("input", () => {
     f.min_signals[el.dataset.signal] = parseInt(el.value, 10);
     $(`#sig-${CSS.escape(el.dataset.signal)}`, view).textContent = el.value;
@@ -975,7 +982,8 @@ function renderMembers(view) {
     const a = A.audienceFilters(p, el.dataset.preset);
     S.acc = { ...defaultMemberFilters(members), preset: el.dataset.preset,
       hidden: new Set(a.types ? present.filter((t) => !a.types.includes(t)) : []),
-      min_engagement: a.min_engagement, verified: a.verified, min_followers: a.min_followers,
+      min_engagement: a.min_engagement, verified: a.verified,
+      min_followers: a.min_followers, max_followers: a.max_followers || 0,
       min_signals: { ...Object.fromEntries(signalNames(p).map((n) => [n, 0])), ...a.min_signals } };
     renderMembers(view); wireView();
   }));

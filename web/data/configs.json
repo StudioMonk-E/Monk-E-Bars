@@ -300,6 +300,13 @@
      "Person"
     ],
     "max_engagement": 500
+   },
+   "Micro creators": {
+    "types": [
+     "Person"
+    ],
+    "min_followers": 2000,
+    "max_followers": 100000
    }
   },
   "account_overrides": {}

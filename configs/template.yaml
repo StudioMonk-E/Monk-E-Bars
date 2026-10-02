@@ -93,6 +93,14 @@ audiences:
   Private posts:
     types: [Person]
     max_engagement: 500
+  # Followers filter from either end, where a capture carries them at all, which
+  # is how a creator in the middle of the range gets separated from a household
+  # name. An account whose count is unknown passes both tests rather than being
+  # dropped on a figure the capture never held.
+  Micro creators:
+    types: [Person]
+    min_followers: 2000
+    max_followers: 100000
 
 # --- optional: a framework for the vocabulary ------------------------------
 # Only needed for reading how a subject is discussed. An outreach list requires

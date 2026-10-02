@@ -333,7 +333,7 @@ def build_accounts(corpus: pd.DataFrame, config: Config,
 
 def apply_filters(accounts: pd.DataFrame, *, types=None, verified=None,
                   min_engagement: int = 0, max_engagement=None,
-                  min_followers: int = 0, min_signals=None) -> pd.DataFrame:
+                  min_followers: int = 0, max_followers=None, min_signals=None) -> pd.DataFrame:
     """Add an ``excluded_because`` column. Nothing is dropped.
 
     Every filter records its own reason, so an account that misses the list stays
@@ -354,12 +354,14 @@ def apply_filters(accounts: pd.DataFrame, *, types=None, verified=None,
             why.append(f"under {min_engagement} engagement")
         if max_engagement is not None and row["best_engagement"] >= max_engagement:
             why.append(f"at or over {max_engagement} engagement")
-        if min_followers:
-            have = int(row.get("followers", 0) or 0)
-            # A capture without follower counts cannot answer this, and excluding
-            # every account on a missing figure would empty the list silently.
-            if have and have < min_followers:
-                why.append(f"under {min_followers} followers")
+        # A capture without follower counts cannot answer either of these, and
+        # excluding every account on a missing figure would empty the list
+        # silently, so an unknown count skips both tests.
+        have = int(row.get("followers", 0) or 0)
+        if min_followers and have and have < min_followers:
+            why.append(f"under {min_followers} followers")
+        if max_followers is not None and have and have >= int(max_followers):
+            why.append(f"at or over {int(max_followers)} followers")
         for name, threshold in (min_signals or {}).items():
             col = f"signal_{name.lower()}"
             if col in df.columns and row[col] < int(threshold):
@@ -391,6 +393,7 @@ def audience_filters(config: Config, name: str) -> dict:
         "min_engagement": int(spec.get("min_engagement", 0) or 0),
         "max_engagement": spec.get("max_engagement"),
         "min_followers": int(spec.get("min_followers", 0) or 0),
+        "max_followers": spec.get("max_followers"),
         "verified": spec.get("verified"),
         "min_signals": dict(spec.get("min_signals") or config.min_signals or {}),
     }
@@ -411,6 +414,8 @@ def describe_audience(config: Config, name: str) -> str:
         bits.append(f"at least {f['min_engagement']} engagement")
     if f.get("min_followers"):
         bits.append(f"at least {f['min_followers']} followers where known")
+    if f.get("max_followers") is not None:
+        bits.append(f"under {int(f['max_followers'])} followers where known")
     if f["max_engagement"] is not None:
         bits.append(f"under {f['max_engagement']} engagement")
     for sig, n in (f["min_signals"] or {}).items():
