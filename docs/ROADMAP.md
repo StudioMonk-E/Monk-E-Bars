@@ -1,6 +1,6 @@
 # Roadmap: X/Twitter and Reddit adapters
 
-Instagram and TikTok are fully supported. X and Reddit ship as **scaffolds**, the adapter classes, the registry entries, the CLI/dashboard wiring and the field
+Instagram and TikTok are fully supported. X and Reddit ship as **scaffolds**, the adapter classes, the registry entries, the CLI wiring and the field
 maps are all in place; each `parse_record` just needs to be pointed at a real
 capture and have its `raise NotImplementedError` removed.
 
@@ -52,4 +52,4 @@ between `legacy` and newer top-level keys.
    `parse_record` returns a `PostRecord`.
 2. Register it in `monke_bars/ingest/__init__.py` (`ADAPTERS`, and `SUPPORTED`
    once it's tested).
-3. Add a test. The CLI and dashboard pick it up automatically.
+3. Add a test. The command line and the browser app pick it up automatically.

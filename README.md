@@ -28,12 +28,10 @@ Then open `http://localhost:5173`. Any static host serves the same folder.
 git clone https://github.com/StudioMonk-E/Monk-E-Bars.git
 cd Monk-E-Bars
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[app]"
+pip install -e .
 monke-bars analyze --platform instagram --config configs/acai.yaml \
     --outdir runs/acai "#acaibowl_foryou.ndjson"
 ```
-
-`streamlit run app/streamlit_app.py` opens a local dashboard over the same package, with colour and topics included.
 
 The two share one source of truth. Stopwords, account types, contraction rules and bundled studies live in the package and are exported to `web/data` by `scripts/export_web_data.py`; a test fails when the export goes stale. A program saved in the browser is a study file the package reads, including the themes it modelled and any account type corrected by hand. The browser port was checked against the package on four real captures, and every word ranking, keyness score, theme share, account row and generated finding came out identical.
 
@@ -133,7 +131,7 @@ Stated here because these shape how the output should be used.
 
 The browser app is static files. On Vercel, the project's Root Directory is `web` with no build command; `web/.vercelignore` keeps the tests and Node tooling out of the deployment.
 
-A hosted copy holds no data. Every capture is processed in the visitor's own browser and nothing is uploaded, which removes the risk a hosted Python dashboard carried, where an open instance received other people's captures on a shared server.
+A hosted copy holds no data. Every capture is processed in the visitor's own browser and nothing is uploaded, which removes the risk the hosted Python dashboard carried, where an open instance received other people's captures on a shared server. That dashboard has been retired: the browser app replaced it, and keeping two interfaces over one pipeline meant every change had to be made twice.
 
 ## Data and privacy
 
@@ -155,9 +153,8 @@ monke_bars/          the package
   accounts.py        account rollup, classification, filters
   export.py          the Excel workbook
   color.py           media download and palettes
-  branding.py        the studio identity, one place
+  branding.py        the palette, which viz.py draws from
   viz.py             matplotlib charts for the CLI
-app/streamlit_app.py the local dashboard
 web/                 the browser app, a port of the package
   js/                ingest, text, corpus, lexical, accounts, findings, topics, export
                      account.js, gains.js: an account's own export and its follows
@@ -172,7 +169,7 @@ tests/               pytest, offline
 ## Development
 
 ```bash
-pip install -e ".[app,dev]"
+pip install -e ".[dev]"
 pytest -q
 python scripts/voice_check.py
 python scripts/export_web_data.py   # after changing a list or a study
@@ -183,4 +180,4 @@ cd web && npm install && npm test
 
 MIT. See [LICENSE](LICENSE).
 
-Built on [Zeeschuimer](https://github.com/digitalmethodsinitiative/zeeschuimer) from the Digital Methods Initiative, with pandas, scikit-learn, Pillow, Altair and Streamlit, and in the browser franc, SheetJS, fflate and js-yaml. The stopword lists come from the NLTK corpora and are shipped as data, so the package no longer depends on it.
+Built on [Zeeschuimer](https://github.com/digitalmethodsinitiative/zeeschuimer) from the Digital Methods Initiative, with pandas, scikit-learn, Pillow and matplotlib, and in the browser franc, SheetJS, fflate and js-yaml. The stopword lists come from the NLTK corpora and are shipped as data, so the package no longer depends on it.
