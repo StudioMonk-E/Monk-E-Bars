@@ -235,6 +235,15 @@ input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 28px; 
    so it is clear the tool is reading its own figures, not adding anything. */
 .n-sm { color: var(--ink-35); font-size: 11px; }
 
+/* Two month pickers on one line, with the word between them. */
+/* Beats `.field > span`, which blocks every label in a field. */
+.field > span.range { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
+.range select { flex: 1 1 0; min-width: 0; }
+.range i { font: 12px/1 var(--mono); color: var(--muted); font-style: normal; }
+/* A change reads as a direction before it reads as a number. */
+b.up { color: var(--gold); font-weight: 500; }
+b.down { color: var(--alert); font-weight: 500; }
+
 .reading { border-left: 3px solid var(--gold); padding: 2px 0 2px 16px; margin: 20px 0 6px; }
 .reading p { margin: 0 0 6px; font: 16px/1.5 var(--body); color: var(--ink); max-width: 72ch; }
 .reading p.plain { font: 13px/1.5 var(--mono); color: var(--muted); margin-bottom: 0; }

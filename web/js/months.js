@@ -163,3 +163,69 @@ export function readTrend(rows) {
   return { span, medianChange, shareChange: Math.round(shareChange), reading,
            earlyMedian: Math.round(m0), lateMedian: Math.round(m1) };
 }
+
+// --- two periods --------------------------------------------------------------
+
+/**
+ * A default pair of periods: the first third of the months against the last.
+ *
+ * The same split `readTrend` uses, so the comparison a reader opens on is the
+ * one the sentence above it already describes. Thin months are left out of the
+ * choosing but not out of the periods themselves: a quiet month still belongs
+ * to the stretch it falls in.
+ */
+export function defaultPeriods(rows) {
+  const usable = rows.filter((r) => !r.thin);
+  const pool = usable.length >= 4 ? usable : rows;
+  if (pool.length < 2) return null;
+  const n = Math.max(1, Math.floor(pool.length / 3));
+  return {
+    aFrom: pool[0].month, aTo: pool[n - 1].month,
+    bFrom: pool[pool.length - n].month, bTo: pool[pool.length - 1].month,
+  };
+}
+
+/** Posts falling inside a month range, inclusive at both ends. */
+export function inPeriod(posts, from, to) {
+  if (!from || !to) return [];
+  const [lo, hi] = from <= to ? [from, to] : [to, from];
+  return posts.filter((p) => {
+    if (!p.timestamp) return false;
+    const k = monthKey(p.timestamp);
+    return k >= lo && k <= hi;
+  });
+}
+
+/** The headline figures for one period, on the same definitions as a month. */
+export function periodStats(posts, metric = "views") {
+  const get = metric === "views" ? (p) => p.view_count || 0 : (p) => p.engagement_score || 0;
+  const vals = posts.map(get);
+  const total = vals.reduce((s, v) => s + v, 0);
+  const top3 = vals.slice().sort((a, b) => b - a).slice(0, 3).reduce((s, v) => s + v, 0);
+  return {
+    posts: posts.length,
+    median: median(vals),
+    total,
+    top3_share: total ? Math.round((top3 / total) * 100) : null,
+    perMonth: new Set(posts.map((p) => monthKey(p.timestamp))).size,
+  };
+}
+
+/**
+ * How a dimension's mix differs between two periods, in points.
+ *
+ * Shares rather than counts, because the periods are rarely the same length,
+ * and a longer period would otherwise look like a mix change on its own.
+ */
+export function mixShift(a, b, dim) {
+  const values = valuesOf([...a, ...b], dim).map((v) => v.value);
+  const share = (ps, v) => (ps.length ? (ps.filter((p) => valueOf(p, dim) === v).length / ps.length) * 100 : 0);
+  return values.map((value) => {
+    // The change is taken from the rounded shares, not from the exact ones.
+    // A reader subtracts the two columns in front of them, and 67 minus 33
+    // has to be the 34 printed beside it rather than the 33 the unrounded
+    // difference would give.
+    const a_pct = Math.round(share(a, value)), b_pct = Math.round(share(b, value));
+    return { value, a_pct, b_pct, change: b_pct - a_pct };
+  }).sort((x, y) => Math.abs(y.change) - Math.abs(x.change));
+}

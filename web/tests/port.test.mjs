@@ -453,6 +453,45 @@ test("the mix carries the count behind every median", () => {
   assert.equal(mix.rows[0].medians.foto, 100);
 });
 
+test("the default periods are the thirds the reading already describes", () => {
+  const rows = MO.byMonth([2, 3, 4, 5, 6, 7].flatMap((m) => monthOf(m, [1, 2, 3, 4, 5]))).rows;
+  assert.deepEqual(MO.defaultPeriods(rows),
+    { aFrom: "2026-02", aTo: "2026-03", bFrom: "2026-06", bTo: "2026-07" });
+  // Under two months there is nothing to set against anything.
+  assert.equal(MO.defaultPeriods(MO.byMonth(monthOf(2, [1, 2, 3, 4])).rows), null);
+});
+
+test("a period takes both its end months, and tolerates a reversed pair", () => {
+  const posts = [2, 3, 4].flatMap((m) => monthOf(m, [100, 200]));
+  assert.equal(MO.inPeriod(posts, "2026-02", "2026-03").length, 4);
+  assert.equal(MO.inPeriod(posts, "2026-02", "2026-02").length, 2);
+  // Picking the later month first should not silently return nothing.
+  assert.equal(MO.inPeriod(posts, "2026-04", "2026-02").length, 6);
+  assert.equal(MO.inPeriod(posts, "", "2026-04").length, 0);
+});
+
+test("a period is measured on the same definitions a month is", () => {
+  const carried = monthOf(2, [100, 100, 100, 100, 9_600]);
+  const stats = MO.periodStats(carried);
+  const month = MO.byMonth(carried).rows[0];
+  assert.equal(stats.median, month.median);
+  assert.equal(stats.top3_share, month.top3_share);
+  assert.equal(stats.total, month.total);
+});
+
+test("a mix shift is read in points of share, not in counts", () => {
+  // The later period is twice the size; only the share should move.
+  const a = monthOf(2, [1, 2], { tags: { f: "video" } }).concat(monthOf(2, [3], { tags: { f: "foto" } }));
+  const b = monthOf(9, [1, 2], { tags: { f: "video" } }).concat(monthOf(9, [3, 4, 5, 6], { tags: { f: "foto" } }));
+  const shift = MO.mixShift(a, b, "f");
+  const foto = shift.find((r) => r.value === "foto");
+  assert.equal(foto.a_pct, 33);
+  assert.equal(foto.b_pct, 67);
+  assert.equal(foto.change, 34);
+  // Biggest mover first, whichever direction it moved.
+  assert.equal(Math.abs(shift[0].change) >= Math.abs(shift[1].change), true);
+});
+
 test("accounts rank by best post and classify first match wins", () => {
   const c = acctCfg();
   const posts = corpus([

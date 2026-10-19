@@ -18,7 +18,7 @@
 import { parseNdjson, detect, parseRecords, parseTable, guessMapping } from "./ingest.js";
 import { setContractions } from "./text.js";
 import { buildCorpus, filterLanguages, filterDates, filterViews, retier, languageCounts, makeDetector } from "./corpus.js";
-import { analyze, keyness, keynessAllTiers, topWords } from "./lexical.js";
+import { analyze, keyness, keynessAllTiers, topWords, overUsed } from "./lexical.js";
 import * as H from "./hooks.js";
 import * as C from "./charts.js";
 import * as M from "./months.js";
@@ -115,7 +115,7 @@ const S = {
   view: "session", acc: null,
   kTarget: null, kRef: "the rest",
   log: { q: "", weight: "" },
-  months: { dim: null, limitCol: "", limitVal: "" },
+  months: { dim: null, limitCol: "", limitVal: "", cmp: null },
   sorts: {}, dismissed: new Set(),
   account: null,      // an account's own export: follows and what it did
   gains: { window: 2, lookback: 6 },
@@ -430,7 +430,7 @@ const COL_LABELS = {
   best_caption: "best caption", excluded_because: "why excluded",
   follower_count: "followers", full_name: "name", detected_language: "language",
   in_better_half: "in better half", median_engagement: "median engagement",
-  top3_share: "top-3 share",
+  top3_share: "top-3 share", a_pct: "earlier", b_pct: "later",
 };
 const colLabel = (c) => COL_LABELS[c] || String(c).replace(/_/g, " ");
 
@@ -1095,12 +1095,103 @@ function monthsView() {
     h += `<p class="plain">The figure in brackets is how many posts that median is taken over. `
       + `Two or three posts is not a rate.</p>`;
   }
+
+  h += periodsSection(rows, limited, dim, metric, metricName);
+  return h;
+}
+
+/**
+ * Two stretches of months, set against each other.
+ *
+ * The monthly charts show a direction; this answers what changed. It reads
+ * from the tokenised corpus rather than the raw posts, so the keyness here is
+ * the same statistic the tier comparison uses, with a period in place of a
+ * tier.
+ */
+function periodsSection(rows, limited, dim, metric, metricName) {
+  const { results } = current();
+  if (rows.length < 2) return "";
+
+  const def = M.defaultPeriods(rows);
+  if (!def) return "";
+  const cmp = S.months.cmp || def;
+  // A month that has dropped out of scope since the choice was made falls back
+  // to the default, rather than silently comparing an empty period.
+  const known = new Set(rows.map((r) => r.month));
+  const safe = ["aFrom", "aTo", "bFrom", "bTo"].every((k) => known.has(cmp[k])) ? cmp : def;
+
+  let h = section("Two periods compared", "What changed between one stretch of months and another. "
+    + "The periods start on the thirds the reading above uses, and can be set to anything.");
+
+  const pick = (id, value) => `<select id="${id}">` + rows.map((r) =>
+    `<option value="${esc(r.month)}"${r.month === value ? " selected" : ""}>${esc(r.label)}</option>`).join("") + `</select>`;
+  h += `<div class="grid two">
+    <label class="field"><span>Earlier period</span><span class="range">${pick("p-a-from", safe.aFrom)}
+      <i>to</i>${pick("p-a-to", safe.aTo)}</span></label>
+    <label class="field"><span>Later period</span><span class="range">${pick("p-b-from", safe.bFrom)}
+      <i>to</i>${pick("p-b-to", safe.bTo)}</span></label></div>`;
+
+  const A = M.inPeriod(limited, safe.aFrom, safe.aTo);
+  const B = M.inPeriod(limited, safe.bFrom, safe.bTo);
+  if (!A.length || !B.length) {
+    return h + `<p class="plain">One of these periods holds no posts.</p>`;
+  }
+  const sa = M.periodStats(A, metric), sb = M.periodStats(B, metric);
+  const delta = (x, y, suffix = "") => {
+    if (x == null || y == null) return "\u2013";
+    const d = y - x;
+    const pct = suffix === "%" ? `${d > 0 ? "+" : ""}${d} pts` : x ? `${d > 0 ? "+" : ""}${Math.round((d / x) * 100)}%` : "\u2013";
+    return `<b class="${d < 0 ? "down" : d > 0 ? "up" : ""}">${pct}</b>`;
+  };
+  h += table([
+    { figure: `posts`, earlier: fmt(sa.posts), later: fmt(sb.posts), change: delta(sa.posts, sb.posts) },
+    { figure: `median ${metricName} per post`, earlier: fmt(sa.median), later: fmt(sb.median), change: delta(sa.median, sb.median) },
+    { figure: "top-3 share of the period", earlier: sa.top3_share == null ? "\u2013" : `${sa.top3_share}%`,
+      later: sb.top3_share == null ? "\u2013" : `${sb.top3_share}%`, change: delta(sa.top3_share, sb.top3_share, "%") },
+    { figure: `total ${metricName}`, earlier: fmt(sa.total), later: fmt(sb.total), change: delta(sa.total, sb.total) },
+  ], ["figure", "earlier", "later", "change"], { id: "periods", numeric: ["earlier", "later", "change"],
+      render: { earlier: (r) => r.earlier, later: (r) => r.later, change: (r) => r.change } });
+
+  if (dim) {
+    const shift = M.mixShift(A, B, dim);
+    h += `<span class="label">the ${esc(dim)} mix, as a share of each period</span>`;
+    h += table(shift, ["value", "a_pct", "b_pct", "change"], { id: "shift",
+      numeric: ["a_pct", "b_pct", "change"],
+      render: { a_pct: (r) => `${r.a_pct}%`, b_pct: (r) => `${r.b_pct}%`,
+                change: (r) => `<b class="${r.change < 0 ? "down" : r.change > 0 ? "up" : ""}">${r.change > 0 ? "+" : ""}${r.change} pts</b>` } });
+  }
+
+  // Keyness needs the tokenised posts, matched back by id.
+  const tok = new Map(results.posts.map((x) => [x.post_id, x]));
+  const bag = (ps) => ps.flatMap((x) => (tok.get(x.post_id)?.content_tokens) || []);
+  const bagA = bag(A), bagB = bag(B);
+  const later = overUsed(bagB, bagA, "the earlier period", 12);
+  const earlier = overUsed(bagA, bagB, "the later period", 12);
+  if (later.length || earlier.length) {
+    const max = Math.max(...later.map((r) => r.log_likelihood), ...earlier.map((r) => r.log_likelihood), 1);
+    const side = (k, cls) => (k.length
+      ? bars(k, "word", "log_likelihood", { max, cls: `keyness ${cls}`, fmtValue: (v) => v.toFixed(2), words: true })
+      : `<p class="plain">Nothing distinctive here.</p>`);
+    h += `<span class="label">what each period says that the other does not (keyness)</span>`;
+    h += `<div class="grid two">
+      <div><div class="band cobalt">more in ${esc(M.monthName(safe.bFrom))}\u2013${esc(M.monthName(safe.bTo))}</div>${side(later, "cobalt")}</div>
+      <div><div class="band">more in ${esc(M.monthName(safe.aFrom))}\u2013${esc(M.monthName(safe.aTo))}</div>${side(earlier, "")}</div></div>`;
+  }
   return h;
 }
 
 function wireMonths() {
   const dim = $("#m-dim");
   if (dim) dim.addEventListener("change", (e) => { S.months.dim = e.target.value; render(); });
+  for (const id of ["p-a-from", "p-a-to", "p-b-from", "p-b-to"]) {
+    const el = $(`#${id}`);
+    if (!el) continue;
+    el.addEventListener("change", () => {
+      S.months.cmp = { aFrom: $("#p-a-from").value, aTo: $("#p-a-to").value,
+                       bFrom: $("#p-b-from").value, bTo: $("#p-b-to").value };
+      render();
+    });
+  }
   const lim = $("#m-limit");
   if (lim) lim.addEventListener("change", (e) => {
     const pair = limitPairs[parseInt(e.target.value, 10)];
