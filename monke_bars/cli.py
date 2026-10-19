@@ -52,8 +52,11 @@ def _cmd_analyze(args):
 
     corpus = build_corpus(
         posts, language=None if args.all_languages else config.language,
-        tier_labels=config.tier_labels,
+        tier_labels=config.tier_labels, min_views=config.min_views,
     )
+    held = corpus.attrs.get("under_view_floor", 0)
+    if held:
+        print(f"Held back {held} post(s) under {config.min_views} views.")
     if corpus.empty:
         sys.exit("Corpus is empty after filtering. Check the platform/config/language.")
     print(f"Corpus: {len(corpus)} posts after dedup"

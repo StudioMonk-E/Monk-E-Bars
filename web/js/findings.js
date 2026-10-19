@@ -22,15 +22,20 @@ function fmtList(words, n = 5) {
 /** Python's f"{x:.2f}". */
 const f2 = (x) => pyRound(x, 2).toFixed(2);
 
-export function corpusFinding(posts, rawCount, languages) {
+export function corpusFinding(posts, rawCount, languages, minViews = 0) {
   const kept = posts.length;
   if (rawCount && rawCount > kept) {
     const dropped = rawCount - kept;
     const pct = pyRound((dropped / rawCount) * 100, 0);
     const langs = [].concat(languages || []);
     const lang = langs.length ? ` The filter keeps ${langs.map(langName).join(" and ")} only.` : "";
+    // The floor has to be named here. It can remove a third of a capture on its
+    // own, and a reader told only about dedup and dates would misread the gap.
+    const reasons = minViews
+      ? `deduplication, language and date filtering, and the ${minViews}-view floor`
+      : "deduplication, language and date filtering";
     return { kind: "corpus", text: `${kept} of ${rawCount} captured posts enter the corpus. `
-      + `${dropped} are removed by deduplication, language and date filtering, `
+      + `${dropped} are removed by ${reasons}, `
       + `which is ${pct} percent of the capture.${lang}` };
   }
   return { kind: "corpus", text: `${kept} posts in the corpus.` };
@@ -104,9 +109,9 @@ export function hashtagFinding(posts, config) {
 
 /** Every statement the corpus supports, in reading order. `posts` must
  *  already carry content tokens. */
-export function generate(posts, config, { rawCount = null, languages = null } = {}) {
+export function generate(posts, config, { rawCount = null, languages = null, minViews = 0 } = {}) {
   const tiers = config.tier_labels.filter((t) => posts.some((p) => p.engagement_tier === t));
-  const out = [corpusFinding(posts, rawCount, languages)];
+  const out = [corpusFinding(posts, rawCount, languages, minViews)];
   for (const fn of [overlapFinding, keynessFinding, exclusiveFinding]) {
     const f = fn(posts, tiers);
     if (f) out.push(f);

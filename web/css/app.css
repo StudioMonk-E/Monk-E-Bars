@@ -131,7 +131,9 @@ input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 28px; 
 .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
 
 .grid { display: grid; gap: 22px 28px; margin-top: 18px; }
-.grid.settings { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+.grid.settings { grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); }
+/* The languages chips need the room before the three narrow fields do. */
+@media (max-width: 1040px) { .grid.settings { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 36px; }
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
@@ -216,6 +218,35 @@ input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 28px; 
 .theme .t { font: 11px/1 var(--mono); color: var(--muted); }
 .theme .track { height: 14px; }
 .theme .fill { height: 100%; min-width: 2px; }
+/* A share read at a glance inside a table cell. The tick at the middle is the
+   point of it: an opening with no effect lands on 50 percent, so the eye wants
+   to compare against the middle rather than against the longest bar. */
+.minibar {
+  position: relative; display: inline-block; width: 84px; height: 10px;
+  background: var(--rule); vertical-align: -1px; margin-right: 9px;
+}
+.minibar i { position: absolute; inset: 0 auto 0 0; background: var(--gold); }
+.minibar::after {
+  content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px;
+  width: 1px; background: var(--ink-35);
+}
+
+/* The sentence the two series support, set apart from the charts that back it
+   so it is clear the tool is reading its own figures, not adding anything. */
+.n-sm { color: var(--ink-35); font-size: 11px; }
+
+.reading { border-left: 3px solid var(--gold); padding: 2px 0 2px 16px; margin: 20px 0 6px; }
+.reading p { margin: 0 0 6px; font: 16px/1.5 var(--body); color: var(--ink); max-width: 72ch; }
+.reading p.plain { font: 13px/1.5 var(--mono); color: var(--muted); margin-bottom: 0; }
+
+.chart { margin: 18px 0 6px; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text.ax { font: 10px/1 var(--mono); fill: var(--muted); }
+.chart text.lab { font: 500 10px/1 var(--mono); fill: var(--ink-60); text-transform: uppercase; letter-spacing: 0.1em; }
+.chart text.mark { fill: var(--ink-text); }
+/* Two or three charts side by side on a wide column, stacked on a narrow one. */
+.charts { display: grid; gap: 26px; margin-top: 4px; }
+
 .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font: 11px/1 var(--mono); color: var(--muted); }
 .legend i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -2px; }
 
@@ -293,15 +324,16 @@ details.panel > .inner { padding: 0 16px 16px; }
 .menu-list small { display: block; font: 12px/1.3 var(--body); color: var(--muted); margin-top: 3px; }
 .menu-list button:hover small { color: var(--paper-2); }
 
-/* ---- two columns: the program, the results ---- */
-.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 36px; margin-top: 30px; align-items: start; }
-@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
-.program { border: 2px solid var(--ink); background: var(--paper-2); }
-.program > summary { padding: 14px 16px; cursor: pointer; list-style: none; border-bottom: 2px solid var(--ink); }
-.program > summary::-webkit-details-marker { display: none; }
-@media (min-width: 901px) { .program > summary { pointer-events: none; } }
-#program-body { padding: 6px 16px 18px; }
-.block { padding: 16px 0; border-bottom: 1px solid var(--rule); }
+/* ---- the results, full width ----
+   Scope and setup are panels off the deck rather than a standing sidebar: a
+   wide account table is the thing that needs the room, and the setup is read
+   once a study rather than watched while reading results. */
+.results { margin-top: 30px; }
+
+/* The setup laid out across the panel. Columns find their own width so a
+   narrow pane drops to one without a breakpoint for every step. */
+#program-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 0 32px; margin-top: 4px; }
+.block { padding: 16px 0; border-bottom: 1px solid var(--rule); min-width: 0; }
 .block:last-child { border-bottom: none; }
 .block .plain { margin-bottom: 10px; }
 
@@ -418,4 +450,4 @@ body.working .rule { height: 4px; margin: 14px 0 0; }
 }
 .warn button.dismiss:hover { border-color: var(--ink); color: var(--ink); }
 
-.layout.alone { grid-template-columns: minmax(0, 1fr); }
+

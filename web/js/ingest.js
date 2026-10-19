@@ -173,7 +173,7 @@ export function parseRecords(records, platform) {
   const parse = PARSERS[platform];
   if (!parse) throw new Error(`No adapter for ${platform}.`);
   const out = [];
-  for (const r of records) { const p = parse(r); if (p) out.push(withScore(p)); }
+  for (const r of records) { const p = parse(r); if (p) out.push(withScore({ tags: {}, ...p })); }
   return out;
 }
 
@@ -225,7 +225,14 @@ export function toInt(v) {
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
-/** Rows (array of objects) from a spreadsheet into posts. */
+/**
+ * Rows (array of objects) from a spreadsheet into posts.
+ *
+ * A column the mapping does not claim is kept as a tag rather than dropped.
+ * That is how a sheet tagged by hand -- format, type, boosted or not -- reaches
+ * the monthly view: the tool cannot know what those columns are called, so it
+ * keeps whatever is there and lets the reader choose which one to group by.
+ */
 export function parseTable(rows, source = "table", override = {}) {
   if (!rows.length) return [];
   // An override of "" unsets a guessed column; undefined leaves the guess.
@@ -233,6 +240,9 @@ export function parseTable(rows, source = "table", override = {}) {
     ...Object.fromEntries(Object.entries(override).filter(([, v]) => v !== undefined).map(([k, v]) => [k, v || null])) };
   if (!m.caption_text) throw new Error("No caption column found. Name the column holding post text, or map it explicitly.");
   const cell = (row, f) => (m[f] ? row[m[f]] : undefined);
+  // Everything the mapping consumed; what is left over is a tag.
+  const claimed = new Set(Object.values(m).filter(Boolean));
+  const tagCols = Object.keys(rows[0]).filter((c) => !claimed.has(c));
   return rows.map((row, i) => {
     const cap = cell(row, "caption_text"); const caption = cap == null ? "" : String(cap);
     const ts = cell(row, "timestamp"); const d = ts == null || ts === "" ? null : new Date(ts);
@@ -257,6 +267,20 @@ export function parseTable(rows, source = "table", override = {}) {
       hashtags: lowerAll(caption.match(HASHTAG_RE) || []),
       mentions: lowerAll(caption.match(MENTION_RE) || []),
       media_urls: media == null || media === "" ? [] : [String(media)],
+      tags: tagValues(row, tagCols),
     });
   });
+}
+
+/** A row's leftover columns, as trimmed strings. A blank cell is left out
+ *  entirely, so a half-tagged sheet reports "untagged" rather than "".  */
+function tagValues(row, cols) {
+  const out = {};
+  for (const c of cols) {
+    const v = row[c];
+    if (v === null || v === undefined) continue;
+    const s = String(v).trim();
+    if (s) out[c] = s;
+  }
+  return out;
 }

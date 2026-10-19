@@ -70,8 +70,14 @@ def corpus_finding(corpus, raw_count: Optional[int], config: Config) -> Finding:
         langs = [config.language] if isinstance(config.language, str) else list(config.language or [])
         lang = (f" The filter keeps {' and '.join(_lang_name(c) for c in langs)} only."
                 if langs else "")
+        # The floor has to be named here. It can remove a third of a capture on
+        # its own, and a reader told only about dedup and dates would misread
+        # the gap between the capture and the corpus.
+        reasons = "deduplication, language and date filtering"
+        if config.min_views:
+            reasons += f", and the {config.min_views}-view floor"
         text = (f"{kept} of {raw_count} captured posts enter the corpus. "
-                f"{dropped} are removed by deduplication, language and date filtering, "
+                f"{dropped} are removed by {reasons}, "
                 f"which is {pct} percent of the capture.{lang}")
     else:
         text = f"{kept} posts in the corpus."

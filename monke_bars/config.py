@@ -48,6 +48,14 @@ class Config:
     since: Optional[str] = None     # keep posts published on or after this date
     until: Optional[str] = None     # keep posts published on or before this date
 
+    # -- view floor (optional) -------------------------------------------
+    # Drop posts seen by fewer than this many people before anything is ranked.
+    # Eighty interactions on six hundred views reads as a thirteen percent rate
+    # and outranks a post thousands of people saw; ranking them together is the
+    # distortion. A post whose platform gives no view count is never dropped,
+    # so an Instagram capture is unaffected.
+    min_views: int = 0
+
     # -- account-level study (optional) ----------------------------------
     # Present only for studies asking which accounts to approach. A corpus study
     # leaves them out and the pipeline ignores them.
@@ -84,6 +92,7 @@ class Config:
             color=color,
             since=d.get("since"),
             until=d.get("until"),
+            min_views=int(d.get("min_views") or 0),
             account_types=dict(d.get("account_types") or {}),
             include_types=list(d.get("include_types") or []),
             signals=dict(d.get("signals") or {}),

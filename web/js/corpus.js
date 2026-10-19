@@ -32,6 +32,24 @@ export function languageCounts(posts) {
     .map(([language, posts]) => ({ language, posts }));
 }
 
+/**
+ * Keep posts that cleared a view floor, before anything is ranked.
+ *
+ * A thin denominator makes a loud percentage: eighty interactions on six
+ * hundred views reads as thirteen percent and then outranks a post that
+ * thousands of people actually saw. Ranking those together is the distortion,
+ * so the floor removes them from the session rather than annotating them.
+ *
+ * A view count of zero means the platform never gave one — Instagram photos
+ * carry no views at all — and an unknown figure cannot fail a test, so those
+ * posts are kept. This is the rule the account filters already use for
+ * followers: a missing number never excludes.
+ */
+export function filterViews(posts, minViews = 0) {
+  if (!minViews) return posts.slice();
+  return posts.filter((p) => !(p.view_count > 0) || p.view_count >= minViews);
+}
+
 export function filterLanguages(posts, languages) {
   if (!languages || !languages.length) return posts.slice();
   const want = new Set(languages.map((l) => String(l).toLowerCase()));

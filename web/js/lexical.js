@@ -38,8 +38,20 @@ export function keyness(posts, target, reference = null, topN = 25, minFreq = 3)
   const tgt = flatten(inTier(posts, target));
   const refPosts = reference == null ? posts.filter((p) => p.engagement_tier !== target)
                                      : inTier(posts, reference);
-  const ref = flatten(refPosts);
   const refLabel = reference == null ? "rest of corpus" : reference;
+  return overUsed(tgt, flatten(refPosts), refLabel, topN, minFreq);
+}
+
+/**
+ * Words over-used in one bag of tokens against another: Dunning
+ * log-likelihood, with a log-ratio effect size beside it because the statistic
+ * alone rewards sheer frequency.
+ *
+ * Split out of `keyness` so that the same statistic serves a comparison the
+ * tiers do not describe -- the openings of the better half against the weaker
+ * half -- rather than that comparison growing a second, slightly different one.
+ */
+export function overUsed(tgt, ref, refLabel, topN = 25, minFreq = 3) {
   const c = tgt.length, d = ref.length;
   if (!c || !d) return [];
 

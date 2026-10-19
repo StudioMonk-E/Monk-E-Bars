@@ -9,7 +9,7 @@ import json
 import math
 
 from monke_bars.config import Config
-from monke_bars.corpus import assign_tiers, build_corpus
+from monke_bars.corpus import assign_tiers, build_corpus, filter_views
 from monke_bars.ingest import get_adapter, load_posts
 from monke_bars.ingest.base import PostRecord
 from monke_bars import lexical, text
@@ -75,6 +75,35 @@ def test_build_corpus_dedup_and_tier():
     # highest engagement ranked first
     assert corpus.iloc[0]["post_id"] == "1"
     assert set(corpus["engagement_tier"]) <= {"High", "Medium", "Low"}
+
+
+def test_view_floor_drops_thin_posts_but_keeps_unknown_counts():
+    """A missing view count never excludes, as a missing follower count does not."""
+    posts = [
+        PostRecord(platform="tiktok", post_id="loud", caption_text="thin but loud",
+                   like_count=80, view_count=633),
+        PostRecord(platform="tiktok", post_id="seen", caption_text="actually seen",
+                   like_count=100, view_count=50_000),
+        PostRecord(platform="instagram", post_id="photo", caption_text="no views given",
+                   like_count=90),
+        PostRecord(platform="tiktok", post_id="edge", caption_text="exactly on the floor",
+                   like_count=10, view_count=2_000),
+    ]
+    corpus = build_corpus(posts, language=None, tier_labels=["High", "Low"], min_views=2_000)
+    assert set(corpus["post_id"]) == {"seen", "photo", "edge"}
+    assert corpus.attrs["under_view_floor"] == 1
+    # The thin post took the top class before the floor was applied.
+    unfiltered = build_corpus(posts, language=None, tier_labels=["High", "Low"])
+    assert unfiltered.iloc[0]["post_id"] == "seen"
+    assert "loud" in set(unfiltered["post_id"])
+
+
+def test_view_floor_of_zero_is_no_floor():
+    df = build_corpus(
+        [PostRecord(platform="tiktok", post_id="a", caption_text="one", view_count=1)],
+        language=None, tier_labels=["High", "Low"], min_views=0)
+    assert len(df) == 1
+    assert filter_views(df, 0).equals(df)
 
 
 def test_normalization_and_stopwords():

@@ -8,14 +8,20 @@
 //
 // Nothing leaves the tab. There is no server to send a capture to.
 //
-// The interface is named in gym terms, and every gym word carries its plain
-// meaning beside it: the rack is the scope, a program is the saved setup, weight
-// classes are the engagement tiers, reps are word counts, members are accounts.
+// The interface says what each thing is: Overview, Words, Accounts, Posts, and
+// Scope and Setup for the two kinds of setting. The gym voice is kept to the
+// chrome -- the title, "Load the bar", "Warming up" -- and to the tier names
+// themselves, which read as what they are: Heavyweight down to Lightweight.
+// An earlier version named every control in gym terms and printed its plain
+// meaning underneath, which meant reading each label twice to find anything.
 
 import { parseNdjson, detect, parseRecords, parseTable, guessMapping } from "./ingest.js";
 import { setContractions } from "./text.js";
-import { buildCorpus, filterLanguages, filterDates, retier, languageCounts, makeDetector } from "./corpus.js";
+import { buildCorpus, filterLanguages, filterDates, filterViews, retier, languageCounts, makeDetector } from "./corpus.js";
 import { analyze, keyness, keynessAllTiers, topWords } from "./lexical.js";
+import * as H from "./hooks.js";
+import * as C from "./charts.js";
+import * as M from "./months.js";
 import { discoverThemes } from "./topics.js";
 import * as A from "./accounts.js";
 import { generate, setLanguageNames, langName } from "./findings.js";
@@ -86,6 +92,9 @@ function normalizeProgram(d, file = "") {
     signals: { ...(d.signals || {}) },
     min_signals: Object.fromEntries(Object.entries(d.min_signals || {}).map(([k, v]) => [k, parseInt(v, 10) || 0])),
     min_engagement: parseInt(d.min_engagement, 10) || 0,
+    // A post-level view floor, applied before ranking. Distinct from
+    // min_engagement, which filters accounts by their best post.
+    min_views: parseInt(d.min_views, 10) || 0,
     audiences: { ...(d.audiences || {}) },
     account_overrides: Object.fromEntries(Object.entries(d.account_overrides || {}).map(([k, v]) => [String(k).toLowerCase(), String(v)])),
   };
@@ -106,6 +115,7 @@ const S = {
   view: "session", acc: null,
   kTarget: null, kRef: "the rest",
   log: { q: "", weight: "" },
+  months: { dim: null, limitCol: "", limitVal: "" },
   sorts: {}, dismissed: new Set(),
   account: null,      // an account's own export: follows and what it did
   gains: { window: 2, lookback: 6 },
@@ -189,7 +199,7 @@ function renderFiles() {
   const html = S.files.map((f) => `<div class="file"><span class="mark ${f.ok ? (f.kind === "table" ? "table" : "") : "bad"}"></span>`
     + `<span><b>${esc(f.name)}</b> &nbsp;/&nbsp; ${esc(f.note)}</span></div>`).join("");
   // A file that cannot be read has to be seen straight away; the rest belong in
-  // the rack, where they stop taking the top of the page once they are read.
+  // the scope panel, where they stop taking the top of the page once read.
   const bad = S.files.some((f) => !f.ok);
   $("#reading").innerHTML = bad ? html : "";
   $("#files").innerHTML = bad ? "" : html;
@@ -318,19 +328,26 @@ function resetForNewData() {
 
 // --- the filtered corpus -----------------------------------------------------
 
+/** True when any post in the session carries a view count. Instagram captures
+ *  carry none, and a floor cannot be applied to a number nobody supplied. */
+function hasViews() {
+  return (S.full || []).some((p) => p.view_count > 0);
+}
+
 function current() {
   const p = S.program;
   const key = JSON.stringify([S.version, [...S.langs].sort(), S.since, S.until,
-    p.tier_labels, p.stopwords_extra, p.query_hashtags, p.themes]);
+    p.tier_labels, p.stopwords_extra, p.query_hashtags, p.themes, p.min_views]);
   if (memo.key === key) return memo.value;
   const langs = [...S.langs];
   let posts = langs.length ? filterLanguages(S.full, langs) : [];
-  posts = weightClasses(filterDates(posts, S.since || null, S.until || null), p.tier_labels);
+  posts = filterViews(filterDates(posts, S.since || null, S.until || null), p.min_views);
+  posts = weightClasses(posts, p.tier_labels);
   let value = { posts, results: null, findings: [] };
   if (posts.length) {
     const results = analyze(posts, p, SW);
     const subset = langs.length < S.present.length ? langs : null;
-    value = { posts, results, findings: generate(results.posts, p, { rawCount: S.raw, languages: subset }) };
+    value = { posts, results, findings: generate(results.posts, p, { rawCount: S.raw, languages: subset, minViews: p.min_views }) };
   }
   memo = { key, value };
   return value;
@@ -369,7 +386,7 @@ function section(label, plain = "") {
 }
 
 /** Bars with the word itself as a button: it opens that word's posts, and the
- *  bench button beside it drops the word from every count. */
+ *  drop button beside it removes the word from every count. */
 function bars(rows, labelKey, valueKey, { max = null, cls = "", fmtValue = fmt, words = false, bench = true } = {}) {
   const top = max ?? (Math.max(...rows.map((r) => r[valueKey]), 0) || 1);
   return `<div class="bars ${cls}${words && bench ? "" : " nobench"}">${rows.map((r) => {
@@ -380,7 +397,7 @@ function bars(rows, labelKey, valueKey, { max = null, cls = "", fmtValue = fmt, 
     return `<div class="row"><span class="lbl">${name}</span>
       <span class="track"><span class="fill" style="display:block;width:${Math.max(0, (r[valueKey] / top) * 100).toFixed(2)}%"></span></span>
       <span class="num">${esc(fmtValue(r[valueKey]))}</span>
-      ${words && bench ? `<span><button class="bench" type="button" data-bench="${esc(label)}" title="Bench ${esc(label)}">bench</button></span>` : ""}</div>`;
+      ${words && bench ? `<span><button class="bench" type="button" data-bench="${esc(label)}" title="Drop ${esc(label)} from every count">drop</button></span>` : ""}</div>`;
   }).join("")}</div>`;
 }
 
@@ -392,6 +409,30 @@ function themeChart(shares, tiers) {
         <span class="track"><span class="fill" style="display:block;background:${TIER_FILL[i % 6]};width:${((r[t] / top) * 100).toFixed(2)}%"></span></span>
         <span class="t" style="text-align:right">${r[t].toFixed(2)}%</span></div>`).join("")}</div>`).join("")}</div>`;
 }
+
+// Column keys are the names the exports and the Python package use, and they
+// stay that way: a sort, a CSV and a spreadsheet all key off them. Only the
+// header a person reads is translated, and a column with no entry here is
+// already plain enough to print as it is.
+const COL_LABELS = {
+  target_freq: "in target", reference_freq: "in reference",
+  log_likelihood: "keyness", log_ratio: "effect size",
+  engagement_rank: "rank", engagement_tier: "tier", engagement_score: "engagement",
+  caption_text: "caption", author_handle: "account", author_name: "name",
+  like_count: "likes", comment_count: "comments", view_count: "views",
+  share_count: "shares", media_type: "media", post_id: "post id", post_url: "link",
+  hashtag_count: "hashtags", is_paid_partnership: "paid partnership",
+  account_type: "type", type_reason: "why", best_engagement: "best post",
+  best_post_views: "views on best", engagement_rate_pct: "rate %",
+  best_post_url: "best post", best_post_date: "best post date",
+  months_since_best: "months since", last_post_date: "last post",
+  total_engagement: "total engagement", paid_partnership: "paid partnership",
+  best_caption: "best caption", excluded_because: "why excluded",
+  follower_count: "followers", full_name: "name", detected_language: "language",
+  in_better_half: "in better half", median_engagement: "median engagement",
+  top3_share: "top-3 share",
+};
+const colLabel = (c) => COL_LABELS[c] || String(c).replace(/_/g, " ");
 
 /** A table that can sort itself. `id` keys the sort state, so a re-render keeps it. */
 function table(rows, cols, { id = "", limit = Infinity, numeric = [], wrap = [], render: cell = {}, sortable = false } = {}) {
@@ -410,8 +451,9 @@ function table(rows, cols, { id = "", limit = Infinity, numeric = [], wrap = [],
   const head = cols.map((c) => {
     const cls = numeric.includes(c) ? "n" : "";
     const mark = sort && sort.key === c ? (sort.dir === "asc" ? " ↑" : " ↓") : "";
+    const label = colLabel(c);
     return `<th class="${cls}">${sortable
-      ? `<button class="sort" type="button" data-sort="${esc(id)}" data-key="${esc(c)}">${esc(c)}${mark}</button>` : esc(c)}</th>`;
+      ? `<button class="sort" type="button" data-sort="${esc(id)}" data-key="${esc(c)}">${esc(label)}${mark}</button>` : esc(label)}</th>`;
   }).join("");
   const body = shown.map((r) => `<tr>${cols.map((c) => {
     const cls = numeric.includes(c) ? "n" : wrap.includes(c) ? "wrap" : "";
@@ -442,10 +484,11 @@ const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 function runFilters(extra = {}) {
   const all = S.present.length === S.langs.size;
-  return { languages: all ? [] : [...S.langs].map(langName), since: S.since, until: S.until, ...extra };
+  return { languages: all ? [] : [...S.langs].map(langName), since: S.since, until: S.until,
+    min_views: S.program.min_views || 0, ...extra };
 }
 
-// --- the rack ----------------------------------------------------------------
+// --- scope -------------------------------------------------------------------
 
 function renderRackSummary() {
   const { posts } = current();
@@ -461,7 +504,8 @@ function renderRackSummary() {
   const shownLangs = langs.length === S.present.length ? "every language" : langs.slice(0, 3).join(", ") + (langs.length > 3 ? ` +${langs.length - 3}` : "");
   const lift = p.query_hashtags.length ? `<span class="lift">${esc(p.query_hashtags.slice(0, 3).join(" "))}</span> &nbsp;/&nbsp; ` : "";
   const dates = S.lo ? `${esc(S.since)} to ${esc(S.until)} &nbsp;/&nbsp; ` : "";
-  $("#rack-summary").innerHTML = `${lift}${esc(S.platform)}${S.platforms && S.platforms.length > 1 ? " (ranked apart)" : ""} &nbsp;/&nbsp; ${esc(shownLangs)} &nbsp;/&nbsp; ${dates}`
+  const floor = p.min_views ? `over ${fmt(p.min_views)} views &nbsp;/&nbsp; ` : "";
+  $("#rack-summary").innerHTML = `${lift}${esc(S.platform)}${S.platforms && S.platforms.length > 1 ? " (ranked apart)" : ""} &nbsp;/&nbsp; ${esc(shownLangs)} &nbsp;/&nbsp; ${dates}${floor}`
     + `<b>${fmt(posts.length)} of ${fmt(S.raw)} posts</b>`;
 }
 
@@ -478,7 +522,7 @@ function renderRack() {
       <input type="checkbox" value="${esc(language)}"${S.langs.has(language) ? " checked" : ""}>
       <span>${esc(langName(language))} ${n}</span></label>`).join("")
     // The long tail stays behind one chip rather than out of sight: a language
-    // nobody can see is still in the rack, and its posts still count.
+    // nobody can see is still in scope, and its posts still count.
     + (hidden.length ? `<label class="toggle"><input type="checkbox" value="__tail"${
         hidden.some((r) => S.langs.has(r.language)) ? " checked" : ""}>
         <span>${hidden.length} more, ${fmt(hidden.reduce((n, r) => n + r.posts, 0))} posts</span></label>` : "");
@@ -490,6 +534,11 @@ function renderRack() {
     const el = $(`#${id}`);
     el.disabled = !S.lo; el.min = S.lo; el.max = S.hi; el.value = S[id];
   }
+  // Without a single view count the floor has nothing to test, so the control
+  // says so rather than sitting there inviting a number that changes nothing.
+  const mv = $("#min-views");
+  mv.value = S.program.min_views || 0;
+  mv.disabled = !hasViews();
   $$("#lang-tools .linkish").forEach((b) => b.addEventListener("click", () => {
     const present2 = S.present.map((r) => r.language);
     if (b.dataset.langs === "all") S.langs = new Set(present2);
@@ -523,7 +572,7 @@ function renderProgram() {
         <button class="btn small" type="button" id="prog-save">Save program</button>
         <button class="btn small" type="button" id="prog-load">Load program</button>
       </div>
-      <p class="plain">A program holds the main lift, benched words, muscle groups and membership types. It is kept in
+      <p class="plain">A program holds the seed hashtag, the dropped words, the themes and the account types. It is kept in
         this browser and saves as a YAML file the Python package reads.</p>
       <label class="field" style="margin-top:10px"><span>Sample programs</span>
         <select id="prog-sample"><option value="">start from blank</option>
@@ -533,24 +582,24 @@ function renderProgram() {
     </div>
 
     <div class="block">
-      <div class="gym">Main lift</div>
-      <p class="plain">The hashtag this capture was searched on. It is left out of the circuit, where it would otherwise
+      <div class="gym">Seed hashtag</div>
+      <p class="plain">The hashtag this capture was searched on. It is left out of the hashtag pairings, where it would otherwise
         come back as the top result. ${S.seeds.length ? "Found in the file." : "Nothing obvious was found in the file."}</p>
       <div class="chips">${p.query_hashtags.map((t) => `<span class="chipx lift">${esc(t)}<button type="button" data-drop-lift="${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join("") || `<span class="plain">none</span>`}</div>
       <div class="add-row"><input type="text" id="lift-add" placeholder="#hashtag"><button class="btn small" type="button" data-add="lift">Add</button></div>
     </div>
 
     <div class="block">
-      <div class="gym">Benched</div>
-      <p class="plain">Words kept out of every count. The bench button beside any word adds it here.</p>
+      <div class="gym">Dropped words</div>
+      <p class="plain">Words kept out of every count. The drop button beside any word adds it here.</p>
       <div class="chips">${p.stopwords_extra.map((w) => `<span class="chipx">${esc(w)}<button type="button" data-drop-bench="${esc(w)}" aria-label="Unbench ${esc(w)}">×</button></span>`).join("") || `<span class="plain">none</span>`}</div>
       <div class="add-row"><input type="text" id="bench-add" placeholder="word"><button class="btn small" type="button" data-add="bench">Add</button></div>
     </div>
 
     <div class="block">
-      <div class="gym">Muscle groups</div>
+      <div class="gym">Themes</div>
       <p class="plain">Themes modelled from the vocabulary itself, each named by its top three words. Rename them, edit
-        the words, and they are counted per weight class.</p>
+        the words, and they are counted per engagement tier.</p>
       <label class="field"><span>Groups to model, <output id="k-out">${S.k || 5}</output></span>
         <input type="range" id="k-range" min="3" max="10" step="1" value="${S.k || 5}"></label>
       <div class="btns" style="margin-top:8px">
@@ -566,7 +615,7 @@ function renderProgram() {
     </div>
 
     <div class="block">
-      <div class="gym">Membership types</div>
+      <div class="gym">Account types</div>
       <p class="plain">What an account is, matched on words in its handle and display name. The generic types come with
         the tool; a type added here is tested first.</p>
       ${Object.entries(types).map(([name, spec]) => {
@@ -580,7 +629,7 @@ function renderProgram() {
           </div></details>`;
       }).join("")}
       <div class="add-row"><input type="text" id="type-add" placeholder="Chocolate brand"><button class="btn small" type="button" data-add="type">Add</button></div>
-      ${overrides ? `<p class="plain" style="margin-top:10px">${overrides} member${overrides > 1 ? "s" : ""} set by hand.
+      ${overrides ? `<p class="plain" style="margin-top:10px">${overrides} account${overrides > 1 ? "s" : ""} set by hand.
         <button class="linkish" type="button" id="clear-overrides">clear</button></p>` : ""}
     </div>`;
 
@@ -696,13 +745,18 @@ function render() {
   const warn = [];
   // An export-only session has no corpus to be empty, so the corpus warnings
   // would only be noise.
-  if (!posts.length && S.full.length) warn.push({ text: S.langs.size ? "Nothing is left in the rack. Widen the languages or the dates."
+  if (!posts.length && S.full.length) warn.push({ text: S.langs.size ? "Nothing is left in scope. Widen the languages, the dates or the view floor."
     : "No language is selected, so nothing is left." });
   else if (posts.length && posts.every((x) => !x.engagement_score)) warn.push({ text: "Every post scores zero engagement, so the weight "
     + "classes carry no information. A likes or comments column fixes that, and until then the word views are the ones to read." });
-  if (S.platforms && S.platforms.length > 1) warn.push({ key: "mixed", text: `This session holds ${S.platform}. Weight classes `
+  // A saved program can carry a floor into a capture that has no views to
+  // test it against, and the scope summary would then name a floor that is not
+  // doing anything.
+  if (p.min_views && S.full.length && !hasViews()) warn.push({ key: "floor-idle", text: `The minimum of ${fmt(p.min_views)} views `
+    + "is set, but no post in this session carries a view count, so nothing is being held back. Instagram captures carry no views." });
+  if (S.platforms && S.platforms.length > 1) warn.push({ key: "mixed", text: `This session holds ${S.platform}. Engagement tiers `
     + "are cut inside each platform, because likes on one are not likes on the other, and an account posting on both comes "
-    + "back as one member with both platforms named." });
+    + "back as one account with both platforms named." });
   $("#warnings").innerHTML = warn.filter((w) => !w.key || !S.dismissed.has(w.key))
     .map((w) => `<div class="warn"><span>${esc(w.text)}</span>${w.key
       ? `<button class="dismiss" type="button" data-dismiss="${esc(w.key)}" aria-label="Dismiss">got it</button>` : ""}</div>`).join("");
@@ -712,7 +766,7 @@ function render() {
   if (S.account) {
     const btn = document.createElement("button");
     btn.setAttribute("role", "tab"); btn.dataset.view = "gains";
-    btn.innerHTML = `Gains<small>followers</small>`;
+    btn.textContent = "Followers";
     btn.addEventListener("click", () => { S.view = "gains"; render(); });
     $(".views").append(btn);
   } else if (S.view === "gains") S.view = "session";
@@ -735,10 +789,10 @@ function render() {
   const view = $("#view");
   const changed = S.view !== S.lastView;
   renderExport();
-  // The program describes how a corpus is read, which an export-only session has
-  // no use for.
-  $("#program").hidden = !S.full.length;
-  $(".layout").classList.toggle("alone", !S.full.length);
+  // The setup describes how a corpus is read, which an export-only session has
+  // no use for. Hiding the button hides the way in, so the panel goes with it.
+  $("#setup-toggle").hidden = !S.full.length;
+  if (!S.full.length) $("#setup-panel").hidden = true;
   if (S.view === "gains" && S.account) {
     view.innerHTML = gainsView();
     wireView(); buildJump();
@@ -749,6 +803,7 @@ function render() {
   if (S.view === "session") view.innerHTML = sessionView();
   else if (S.view === "reps") view.innerHTML = repsView();
   else if (S.view === "members") { renderMembers(view); wireView(); buildJump(); return settle(changed); }
+  else if (S.view === "months") { view.innerHTML = monthsView(); wireView(); buildJump(); wireMonths(); return settle(changed); }
   else if (S.view === "sets") view.innerHTML = setsView();
   else view.innerHTML = logView();
   wireView(); buildJump(); settle(changed);
@@ -802,19 +857,26 @@ function wireView() {
 
 function claimBlock() {
   const p = S.program;
-  return section("Coach's call", "The reading this session supports, written by a person. The tool never writes one.")
+  return section("Your reading", "The reading this session supports, written by a person. The tool never writes one.")
     + (p.claim
       ? `<div class="claim"><div class="bar"></div><div class="body"><div class="q">${esc(p.claim)}</div>
           <div class="src">authored &nbsp;/&nbsp; ${esc(p.name)} <button class="linkish" type="button" id="claim-edit">edit</button></div></div></div>`
       : `<div class="coach"><textarea id="claim-box" placeholder="One sentence this corpus can carry"></textarea>
-          <div class="btns"><button class="btn small" type="button" id="claim-save">Save the call</button></div></div>`);
+          <div class="btns"><button class="btn small" type="button" id="claim-save">Save reading</button></div></div>`);
 }
 
 function sessionView() {
   const { posts, results, findings } = current();
   const p = S.program, tiers = p.tier_labels;
   let h = claimBlock();
-  h += section("Spotter's notes", "Stated by the data. Every line is a count this session can show.")
+
+  // The shape of the session before the sentences about it: when the posts
+  // went out, how skewed the engagement is, and how reach relates to response.
+  h += section("At a glance", "The shape of this selection, before any of the counts below.");
+  h += `<div class="charts">${C.timeline(posts)}${C.rankedCurve(posts, tiers)}`
+    + `${posts.some((x) => x.view_count > 0) ? C.viewsScatter(posts, { floor: p.min_views, tiers }) : ""}</div>`;
+
+  h += section("What the data states", "Every line is a count this session can show, with nothing inferred.")
     + `<ul class="evidence">${findings.map((f) => `<li>${emphasis(f.text)}</li>`).join("")}</ul>`;
 
   const flat = posts.every((x) => !x.engagement_score);
@@ -826,25 +888,25 @@ function sessionView() {
       const side = (rows, cls) => (rows.length
         ? bars(rows, "word", "log_likelihood", { max, cls: `keyness ${cls}`, fmtValue: (v) => v.toFixed(2), words: true })
         : `<p class="plain">Nothing distinctive at this end.</p>`);
-      h += section("Heavy vs light", "Words that set the top posts apart from the bottom, once sheer frequency is controlled for (keyness).");
+      h += section("Distinctive words", "Words that set the top posts apart from the bottom, once sheer frequency is controlled for (keyness).");
       h += `<div class="grid two"><div><div class="band">${esc(hi)}</div>${side(kh, "")}</div>
         <div><div class="band cobalt">${esc(lo)}</div>${side(kl, "cobalt")}</div></div>`;
     }
   }
 
-  h += section("Weight classes", "Posts are ranked by likes plus comments and cut into equal groups.");
-  h += `<div class="grid metrics">${[["posts in the rack", fmt(posts.length)], ["records read", fmt(S.raw)],
+  h += section("Engagement tiers", "Posts are ranked by likes plus comments and cut into equal groups.");
+  h += `<div class="grid metrics">${[["posts in scope", fmt(posts.length)], ["records read", fmt(S.raw)],
     ...tiers.map((t) => [t.toLowerCase(), fmt(posts.filter((x) => x.engagement_tier === t).length)]),
   ].map(([k, v]) => `<div class="metric"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join("")}</div>`;
 
-  h += section("Muscle groups", "Themes modelled from the vocabulary, as a share of each class's words.");
+  h += section("Themes", "Modelled from the vocabulary, as a share of each tier's words.");
   h += Object.keys(p.themes).length
     ? themeChart(results.themeShares, tiers)
     : `<p class="plain">No groups yet. Find groups in the program panel models them from this selection, and they can be
         renamed and edited afterwards.</p>`;
 
   if (results.hashtags.length) {
-    h += section("Circuit", "Hashtags that travel together, with the main lift left out.");
+    h += section("Hashtags together", "Hashtags that travel together, with the seed hashtag left out.");
     h += `<div class="hashtags">${results.hashtags.slice(0, 12).map((r) => `<span>${esc(r.hashtag)}<b>${r.frequency}</b></span>`).join("")}</div>`;
   }
   return h;
@@ -859,31 +921,193 @@ function repsView() {
   const k = keyness(results.posts, S.kTarget, S.kRef === "the rest" ? null : S.kRef, 25);
   const kcols = ["word", "target_freq", "reference_freq", "log_likelihood", "log_ratio"];
 
-  let h = section("Reps", "The most repeated words. A word opens its posts, and the bench button drops it.");
+  let h = section("Top words", "The most repeated words. A word opens its posts, and the drop button removes it from every count.");
   h += bars(results.topWords.slice(0, 20), "word", "frequency", { words: true });
   h += `<div class="grid three">${tiers.map((t) => `<div><span class="label">${esc(t.toLowerCase())}</span>
     ${table(results.topWordsByTier[t], ["word", "frequency"], { numeric: ["frequency"], render: { word: (r) => `<button class="word" type="button" data-word="${esc(r.word)}">${esc(r.word)}</button>` } })}</div>`).join("")}</div>`;
 
-  h += section("Heavy vs light", "Keyness, one class against another.");
+  h += hooksSection(results.posts);
+
+  h += section("Distinctive words", "Keyness, one tier against another.");
   h += `<div class="grid two">
     <label class="field"><span>Class</span><select id="k-target">${tiers.map((t) => `<option${t === S.kTarget ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
     <label class="field"><span>Compared against</span><select id="k-ref">${refs.map((t) => `<option${t === S.kRef ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label></div>`;
   h += table(k, kcols, { id: "keyness", numeric: kcols.slice(1), sortable: true,
     render: { word: (r) => `<button class="word" type="button" data-word="${esc(r.word)}">${esc(r.word)}</button>` } });
 
-  h += section("Supersets", "Words used back to back.");
+  h += section("Word pairs", "Words used back to back.");
   h += `<div class="grid two"><div><span class="label">two words</span>${table(results.bigrams, ["phrase", "frequency"], { numeric: ["frequency"] })}</div>
     <div><span class="label">three words</span>${table(results.trigrams, ["phrase", "frequency"], { numeric: ["frequency"] })}</div></div>`;
 
-  h += section("Circuit", "Hashtags that travel together.");
+  h += section("Hashtags together", "Hashtags that travel together.");
   h += table(results.hashtags, ["hashtag", "frequency"], { id: "tags", numeric: ["frequency"], sortable: true });
 
   if (Object.keys(p.themes).length) {
-    h += section("Muscle groups", "Word hits per class, and as a share of each class.");
+    h += section("Themes", "Word hits per tier, and as a share of each tier.");
     h += table(results.themeCounts, ["theme", ...tiers, "total"], { numeric: [...tiers, "total"] });
     h += table(results.themeShares, ["theme", ...tiers], { numeric: tiers });
   }
   return h;
+}
+
+/**
+ * How the better half opens, against the weaker half.
+ *
+ * Separate from the tier measures above: those read whole captions with the
+ * stopwords dropped, and a hook is mostly stopwords. The halves are cut by
+ * rank inside each platform, which `hooks.js` explains.
+ */
+function hooksSection(posts) {
+  const { above, below, cuts } = H.halves(posts);
+  let h = section("Hooks", `How the better half of these posts opens, against the weaker half. `
+    + `The first ${H.HOOK_WORDS} words of a caption, counted with the small words left in, `
+    + `because an opening is mostly small words.`);
+
+  if (above.length < 4 || below.length < 4) {
+    return h + `<p class="plain">Too few posts to halve: ${fmt(above.length)} against ${fmt(below.length)}. `
+      + `Widen the scope and this fills in.</p>`;
+  }
+
+  h += `<p class="plain">${cuts.map((c) => `On ${esc(c.platform)} the halves split at `
+    + `<b>${fmt(c.cut)}</b> likes plus comments, over ${fmt(c.posts)} posts.`).join(" ")}</p>`;
+
+  const open = H.openers(posts, { size: 3, minPosts: 3, topN: 12 });
+  if (open.length) {
+    h += `<span class="label">openings, by how often they land in the better half</span>`;
+    h += table(open, ["phrase", "posts", "in_better_half", "share", "median_engagement"], {
+      id: "openers", numeric: ["posts", "in_better_half", "median_engagement"], sortable: true,
+      render: { share: (r) => `<span class="minibar"><i style="width:${Math.round(r.share * 100)}%"></i></span>`
+        + `${Math.round(r.share * 100)}%` } });
+    h += `<p class="plain">An opening with no effect scores 50 percent. Three posts is the fewest `
+      + `that will appear here, and three posts is not evidence: read the count beside the share.</p>`;
+  } else {
+    h += `<p class="plain">No opening phrase is used by three or more posts, so there is nothing `
+      + `here worth reading yet.</p>`;
+  }
+
+  const hk = H.hookKeyness(above, below, { topN: 20 });
+  h += `<span class="label">words over-used in the better half's openings</span>`;
+  h += hk.length
+    ? table(hk, ["word", "target_freq", "reference_freq", "log_likelihood", "log_ratio"],
+            { id: "hookkey", numeric: ["target_freq", "reference_freq", "log_likelihood", "log_ratio"],
+              sortable: true })
+    : `<p class="plain">No opening word clears the minimum of three uses.</p>`;
+  return h;
+}
+
+// --- months ------------------------------------------------------------------
+
+// The "limit to" options as last rendered, so a change event can resolve its
+// index back to a column and a value.
+let limitPairs = [];
+
+/**
+ * Month by month, to separate a falling baseline from hits that stopped.
+ *
+ * Views are the metric where the capture carries them and likes plus comments
+ * where it does not, which is said on the page rather than assumed: an
+ * Instagram capture has no views at all, and a reading of "views" built on
+ * likes would be a different claim wearing the same word.
+ */
+function monthsView() {
+  const { posts } = current();
+  const st = S.months;
+
+  const metric = M.hasViews(posts) ? "views" : "engagement";
+  const metricName = metric === "views" ? "views" : "likes plus comments";
+
+  let h = section("Months", `Is the ordinary post doing less, or have the hits stopped? `
+    + `A monthly total cannot tell those apart, so both are drawn: the median per post is the `
+    + `baseline, and the share of the month carried by its three best posts is the hit dependence.`);
+
+  if (metric === "engagement") {
+    h += `<p class="plain">No post in this selection carries a view count, so everything below is `
+      + `likes plus comments. Instagram captures carry no views; a CSV exported from Meta Business `
+      + `Suite or TikTok Studio does, and reading that here changes these figures to real views.</p>`;
+  }
+
+  // Limiting to one value, so boosted posts can be set aside before reading.
+  const dims = M.dimensions(posts);
+  const limited = st.limitCol && st.limitVal
+    ? posts.filter((x) => M.valueOf(x, st.limitCol) === st.limitVal) : posts;
+
+  if (dims.length) {
+    // The option carries an index, not the pair itself. A tag name and a tag
+    // value both come out of someone's spreadsheet, so any delimiter joining
+    // them could occur inside one of them -- and a NUL, which could not, does
+    // not survive an HTML attribute: the parser replaces it.
+    limitPairs = dims.flatMap((d) => M.valuesOf(posts, d).map((v) => [d, v.value, v.posts]));
+    h += `<div class="grid two"><label class="field"><span>Limit to</span><select id="m-limit">`
+      + `<option value="">every post</option>`
+      + limitPairs.map(([d, v, n], i) => `<option value="${i}"${
+          st.limitCol === d && st.limitVal === v ? " selected" : ""}>${esc(d)} = ${esc(v)} (${fmt(n)})</option>`).join("")
+      + `</select></label>`
+      + `<label class="field"><span>Break down by</span><select id="m-dim">`
+      + dims.map((d) => `<option${st.dim === d ? " selected" : ""}>${esc(d)}</option>`).join("")
+      + `</select></label></div>`;
+  }
+
+  const { rows, undated } = M.byMonth(limited, metric);
+  if (!rows.length) return h + `<p class="plain">No post in this selection carries a date, so there are no months to read.</p>`;
+  if (undated) {
+    h += `<p class="plain">${fmt(undated)} post${undated > 1 ? "s carry" : " carries"} no date and `
+      + `${undated > 1 ? "are" : "is"} left out of every figure below.</p>`;
+  }
+
+  const trend = M.readTrend(rows);
+  if (trend) {
+    h += `<div class="reading"><p>${esc(trend.reading)}</p><p class="plain">Comparing ${esc(trend.span)}: `
+      + `median ${metricName} per post ${trend.medianChange == null ? "unchanged"
+          : `${trend.medianChange > 0 ? "up" : "down"} ${Math.abs(trend.medianChange)} percent `
+            + `(${fmt(trend.earlyMedian)} to ${fmt(trend.lateMedian)})`}, `
+      + `top-three share ${trend.shareChange > 0 ? "up" : "down"} ${Math.abs(trend.shareChange)} points.</p></div>`;
+  } else {
+    h += `<p class="plain">Fewer than four months carry enough posts to read a direction from. `
+      + `Widen the dates in Scope.</p>`;
+  }
+
+  h += C.monthBars(rows, "median", { fill: "var(--gold)", caption: `median ${metricName} per post` });
+  h += C.monthBars(rows, "top3_share", { fill: "var(--cobalt)", suffix: "%",
+    caption: "share of the month carried by its three best posts" });
+  h += `<p class="plain">A dashed column is a month of under four posts, where a top three means little. `
+    + `A dash is a month that scored nothing at all.</p>`;
+
+  h += table(rows.map((r) => ({ month: r.label, posts: r.posts, median: r.median,
+      total: r.total, top3_share: r.top3_share })),
+    ["month", "posts", "median", "total", "top3_share"],
+    { id: "months", numeric: ["posts", "median", "total", "top3_share"], sortable: true,
+      render: { top3_share: (r) => (r.top3_share == null ? "\u2013" : `${r.top3_share}%`) } });
+
+  const dim = dims.includes(st.dim) ? st.dim : dims[0];
+  if (dim) {
+    const mix = M.mixByMonth(limited, dim, metric);
+    h += section("The mix", `How the share of each ${esc(dim)} moved, and what each one actually did. `
+      + `A mix change only explains a fall if the kind that grew also performs worse.`);
+    h += C.mixBars(mix.rows, mix.values, { caption: `share of posts by ${dim}` });
+    h += `<span class="label">median ${metricName}, by ${esc(dim)}</span>`;
+    // The count rides along with every median. A median over two posts is not
+    // a rate, and a table of bare numbers invites it to be read as one.
+    h += table(mix.rows.map((r) => Object.fromEntries([["month", r.label],
+        ...mix.values.map((v) => [v, r.medians[v] == null ? "\u2013"
+          : `${fmt(r.medians[v])} <span class="n-sm">(${fmt(r.counts[v])})</span>`])])),
+      ["month", ...mix.values], { id: "mix", numeric: mix.values,
+        render: Object.fromEntries(mix.values.map((v) => [v, (r) => r[v]])) });
+    h += `<p class="plain">The figure in brackets is how many posts that median is taken over. `
+      + `Two or three posts is not a rate.</p>`;
+  }
+  return h;
+}
+
+function wireMonths() {
+  const dim = $("#m-dim");
+  if (dim) dim.addEventListener("change", (e) => { S.months.dim = e.target.value; render(); });
+  const lim = $("#m-limit");
+  if (lim) lim.addEventListener("change", (e) => {
+    const pair = limitPairs[parseInt(e.target.value, 10)];
+    S.months.limitCol = pair ? pair[0] : "";
+    S.months.limitVal = pair ? pair[1] : "";
+    render();
+  });
 }
 
 // --- members -----------------------------------------------------------------
@@ -921,7 +1145,7 @@ function renderMembers(view) {
   const members = allMembers();
   const p = S.program;
   if (!members.length) {
-    view.innerHTML = section("Members", "One row per account.") + `<p class="plain">No accounts could be identified in this selection.</p>`;
+    view.innerHTML = section("Accounts", "One row per account.") + `<p class="plain">No accounts could be identified in this selection.</p>`;
     return;
   }
   if (!S.acc || S.acc.version !== S.version) S.acc = defaultMemberFilters(members);
@@ -931,12 +1155,12 @@ function renderMembers(view) {
   const hasFollowers = members.some((a) => a.followers > 0);
   const presets = Object.keys(p.audiences || {});
 
-  let h = section("Members", "One row per account, ranked by its strongest post. Nothing is deleted: an account that misses the list keeps its reason.");
+  let h = section("Accounts", "One row per account, ranked by its strongest post. Nothing is deleted: an account that misses the list keeps its reason.");
   h += `<div class="grid settings">
-    <div><span class="label" id="type-label">Membership types</span>
+    <div><span class="label" id="type-label">Account types</span>
       <div class="toggles" role="group" aria-labelledby="type-label">${present.map((t) => `<label class="toggle">
         <input type="checkbox" data-type value="${esc(t)}"${f.hidden.has(t) ? "" : " checked"}><span>${esc(t)} ${members.filter((a) => a.account_type === t).length}</span></label>`).join("")}</div></div>
-    <label class="field"><span>Minimum weight, best post</span><input type="number" id="min-eng" min="0" max="${cap}" step="1" value="${f.min_engagement}"></label>
+    <label class="field"><span>Minimum engagement, best post</span><input type="number" id="min-eng" min="0" max="${cap}" step="1" value="${f.min_engagement}"></label>
     <label class="field"><span>Verified</span><select id="verified">
       <option value=""${f.verified == null ? " selected" : ""}>either</option>
       <option value="1"${f.verified === true ? " selected" : ""}>verified only</option>
@@ -1031,16 +1255,16 @@ function renderMemberResults() {
   };
 
   $("#member-results").innerHTML = `<div class="grid metrics" style="margin-top:28px">${[
-    ["on the list", kept.length], ["members found", members.length], ["didn't make weight", left.length],
+    ["on the list", kept.length], ["accounts found", members.length], ["excluded", left.length],
   ].map(([k, v]) => `<div class="metric"><div class="k">${k}</div><div class="v">${fmt(v)}</div></div>`).join("")}</div>
-    <div class="table-tools"><label class="field"><span>Find a member</span>
+    <div class="table-tools"><label class="field"><span>Find an account</span>
       <input type="text" id="member-q" value="${esc(f.q)}" placeholder="handle or name"></label></div>
     ${table(kept, cols, { id: "members", limit: 250, numeric, sortable: true, render: cell })}
     <p class="plain">${hasFollowers
       ? "Follower counts come with this capture, and engagement rate is measured against views, which is how TikTok is read."
       : "Weight counts likes plus comments. This capture carries no follower counts, so a small account with one popular post can outrank a large one."}
       A membership type is a keyword match, which is why the reason sits beside it, and the type can be corrected in the table.</p>
-    <details class="panel"><summary>Didn't make weight (${fmt(left.length)})</summary><div class="inner">
+    <details class="panel"><summary>Excluded (${fmt(left.length)})</summary><div class="inner">
       <p class="plain">A keyword classifier makes mistakes in both directions. This is where they surface.</p>
       ${table(left, ["username", "account_type", "type_reason", "best_engagement", "excluded_because"],
         { id: "left", limit: 250, numeric: ["best_engagement"], wrap: ["excluded_because"], sortable: true })}
@@ -1080,7 +1304,7 @@ function logView() {
   const rows = logRows();
   const cols = ["engagement_rank", "engagement_tier", ...(S.sources.length > 1 ? ["source"] : []), "language",
     "author_handle", "caption_text", "like_count", "comment_count", "engagement_score", "timestamp", "url"];
-  let h = section("Training log", "Every post in the rack, with the numbers behind its class.");
+  let h = section("Posts", "Every post in scope, with the numbers behind its tier.");
   if (S.log.fromWord && S.log.q === S.log.fromWord) {
     h += `<div class="filterchip"><span class="what">Posts using <b>${esc(S.log.fromWord)}</b></span>
       <button class="btn small" type="button" id="log-clear">Show every post</button>
@@ -1088,8 +1312,8 @@ function logView() {
   }
   h += `<div class="table-tools">
     <label class="field"><span>Search captions and handles</span><input type="text" id="log-q" value="${esc(S.log.q)}" placeholder="word or handle"></label>
-    <label class="field narrow"><span>Weight class</span><select id="log-weight">
-      <option value="">every class</option>${p.tier_labels.map((t) => `<option${S.log.weight === t ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label></div>`;
+    <label class="field narrow"><span>Engagement tier</span><select id="log-weight">
+      <option value="">every tier</option>${p.tier_labels.map((t) => `<option${S.log.weight === t ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label></div>`;
   h += `<p class="plain">${fmt(rows.length)} of ${fmt(current().posts.length)} posts.</p>`;
   h += table(rows, cols, { id: "log", limit: 100, sortable: true, wrap: ["caption_text"],
     numeric: ["engagement_rank", "like_count", "comment_count", "engagement_score"],
@@ -1112,12 +1336,12 @@ function setsView() {
   const shared = sets.length > 1
     ? tops[sets[0]].map((r) => r.word).filter((w) => sets.every((s) => tops[s].some((r) => r.word === w))) : [];
 
-  let h = section("Sets", `Up to three files against each other. ${S.sources.length > SET_LIMIT
+  let h = section("Files compared", `Up to three files against each other. ${S.sources.length > SET_LIMIT
     ? `This capture holds ${S.sources.length} files, so the first ${SET_LIMIT} are compared.` : ""}`);
   h += `<div class="grid metrics">${sets.map((s) => {
     const own = posts.filter((p) => p.source === s);
     return `<div class="metric"><div class="k">${esc(s)}</div><div class="v">${fmt(own.length)}</div>
-      <div class="k" style="margin-top:6px">posts in the rack</div></div>`;
+      <div class="k" style="margin-top:6px">posts in scope</div></div>`;
   }).join("")}</div>`;
 
   h += section("What each set holds alone", "Words over-used in one file against the others pooled (keyness).");
@@ -1126,7 +1350,7 @@ function setsView() {
     ${keyBySet[s].length ? bars(keyBySet[s], "word", "log_likelihood", { cls: `keyness${i === 1 ? " cobalt" : ""}`, fmtValue: (v) => v.toFixed(2), words: true, bench: false })
       : `<p class="plain">Nothing distinctive here.</p>`}</div>`).join("")}</div>`;
 
-  h += section("Reps side by side", "The most repeated words in each file.");
+  h += section("Top words side by side", "The most repeated words in each file.");
   h += `<div class="grid sets">${sets.map((s) => `<div><span class="label">${esc(s)}</span>
     ${table(tops[s], ["word", "frequency"], { numeric: ["frequency"],
       render: { word: (r) => `<button class="word" type="button" data-word="${esc(r.word)}">${esc(r.word)}</button>` } })}</div>`).join("")}</div>`;
@@ -1153,7 +1377,7 @@ function setsView() {
         return best ? `${best[0]} (${best[1]})` : "";
       })() };
   });
-  h += section("Set by set", "The same figures for each file.");
+  h += section("File by file", "The same figures for each file.");
   h += table(rows, ["set", "posts", "accounts", "median_weight", "best_weight", "top_hashtag"],
     { id: "sets", numeric: ["posts", "accounts", "median_weight", "best_weight"], sortable: true });
   return h;
@@ -1171,7 +1395,7 @@ function gainsView() {
   const found = G.spikes(follows);
   const moves = G.stimulus(events, follows, { windowHours: S.gains.window });
 
-  let h = section("Gains", "Followers arriving, by the day they arrived. An export carries the moment each one followed, "
+  let h = section("Followers gained", "Followers arriving, by the day they arrived. An export carries the moment each one followed, "
     + "which is the only record of timing either platform gives an account about itself.");
   h += `<div class="grid metrics">${[
     ["followers in the export", fmt(sum.follows)], ["days covered", fmt(sum.days)],
@@ -1190,7 +1414,7 @@ function gainsView() {
   h += `<p class="plain">An export lists current followers only. Anyone who followed and has since left is absent, so the
     further back a week sits, the thinner it reads.</p>`;
 
-  h += section("PRs", "Days when follows ran clearly above this account's own rate. A day has to beat the usual rate by "
+  h += section("Standout days", "Days when follows ran clearly above this account's own rate. A day has to beat the usual rate by "
     + "half again, stand above its spread, and clear a floor, since two follows on a quiet account is not an event.");
   if (!found.length) {
     h += `<p class="plain">No day stands out above the rest of this period.</p>`;
@@ -1205,7 +1429,7 @@ function gainsView() {
       { id: "prs", numeric: ["follows", "usual", "times", "in_those_hours"], wrap: ["what_came_first"], sortable: true });
   }
 
-  h += section("Stimulus", "Everything the account did, with the follows that arrived afterwards.");
+  h += section("What the account did", "Everything the account did, with the follows that arrived afterwards.");
   h += `<div class="table-tools">
     <label class="field narrow"><span>Window after an action</span><select id="gains-window">
       ${[1, 2, 6, 24].map((n) => `<option value="${n}"${S.gains.window === n ? " selected" : ""}>${n} hour${n > 1 ? "s" : ""}</option>`).join("")}
@@ -1236,7 +1460,7 @@ function exportItems() {
 
   if (S.account) {
     const { follows, events } = S.account;
-    items.push(["Gains", "CSV, every follower with the moment it followed", () => {
+    items.push(["Followers", "CSV, every follower with the moment it followed", () => {
       save(csv(follows.map((f) => ({ followed_at: new Date(f.ts).toISOString(), username: f.username })),
         ["followed_at", "username"]), `${slug(p.name)}-gains.csv`, "text/csv");
     }]);
@@ -1252,7 +1476,7 @@ function exportItems() {
   if (!results) return items;
 
   return items.concat([
-    ["Members list", "Excel, three sheets: the list, who missed weight, and the settings", async () => {
+    ["Accounts list", "Excel, three sheets: the list, who was excluded, and the settings", async () => {
       const XLSX = await lib("xlsx");
       const members = allMembers();
       const scored = A.applyFilters(members, memberFilters(members));
@@ -1264,19 +1488,24 @@ function exportItems() {
         corpusRows: posts.length, rawRows: S.raw, platform: S.platform,
       }), `${slug(p.name)}-members.xlsx`, XLSX_TYPE);
     }],
-    ["Training log", "CSV, every post in the rack", () => {
+    ["Posts", "CSV, every post in scope", () => {
       const cols = Object.keys(results.posts[0] || {}).filter((c) => !["content_tokens", "hashtags", "mentions"].includes(c));
       save(csv(results.posts, cols), `${slug(p.name)}-log.csv`, "text/csv");
     }],
-    ["Training log", "Excel, every post plus the settings", async () => {
+    ["Posts", "Excel, every post plus the settings", async () => {
       const XLSX = await lib("xlsx");
       save(postsWorkbook(XLSX, { posts: results.posts, config: p, filters: runFilters(), platform: S.platform }),
         `${slug(p.name)}-log.xlsx`, XLSX_TYPE);
     }],
-    ["Heavy vs light", "CSV, the keyness table as shown", () => {
+    ["Distinctive words", "CSV, the keyness table as shown", () => {
       const rows = keyness(results.posts, S.kTarget || p.tier_labels[0], S.kRef === "the rest" ? null : S.kRef, 100);
       save(csv(rows, ["word", "target_freq", "reference_freq", "log_likelihood", "log_ratio", "reference"]),
-        `${slug(p.name)}-heavy-vs-light.csv`, "text/csv");
+        `${slug(p.name)}-distinctive-words.csv`, "text/csv");
+    }],
+    ["Hooks", "CSV, the openings and how they did", () => {
+      const rows = H.openers(results.posts, { size: 3, minPosts: 2, topN: 500 });
+      save(csv(rows, ["phrase", "posts", "in_better_half", "share", "median_engagement"]),
+        `${slug(p.name)}-hooks.csv`, "text/csv");
     }],
     ["Program", "YAML, this setup for another session or the command line", async () => {
       const { dump } = await lib("yaml");
@@ -1316,13 +1545,21 @@ function wire() {
     $("#files").innerHTML = ""; $("#mapping").innerHTML = ""; $("#reading").innerHTML = "";
   });
 
-  const rackToggle = $("#rack-toggle");
-  rackToggle.addEventListener("click", () => {
-    const open = $("#rack-panel").hidden;
-    $("#rack-panel").hidden = !open;
-    rackToggle.setAttribute("aria-expanded", String(open));
-    rackToggle.textContent = open ? "Close the rack" : "Edit the rack";
-  });
+  // Scope and setup behave the same way, and only one is open at a time: two
+  // panels of controls above the results would push them off the screen.
+  const PANELS = [["#rack-toggle", "#rack-panel", "Scope"], ["#setup-toggle", "#setup-panel", "Setup"]];
+  for (const [btnSel, panelSel, label] of PANELS) {
+    const btn = $(btnSel);
+    btn.addEventListener("click", () => {
+      const open = $(panelSel).hidden;
+      for (const [b2, p2, l2] of PANELS) {
+        const isThis = p2 === panelSel;
+        $(p2).hidden = isThis ? !open : true;
+        $(b2).setAttribute("aria-expanded", String(isThis && open));
+        $(b2).textContent = isThis && open ? `Close ${l2.toLowerCase()}` : l2;
+      }
+    });
+  }
 
   $("#langs").addEventListener("change", (e) => {
     if (!e.target.matches("input")) return;
@@ -1337,12 +1574,26 @@ function wire() {
     $(`#${id}`).addEventListener("change", (e) => {
       S[id] = e.target.value || (id === "since" ? S.lo : S.hi);
       if (S.since && S.until && S.since > S.until) { if (id === "since") S.until = S.since; else S.since = S.until; }
+      // A window the reader chose belongs in the program, so it saves with it
+      // and the command line reads the same one. A bound sitting on the edge of
+      // the capture is not a choice though, and writing that back would bake
+      // one file's first and last day into a config meant for the next capture
+      // too; so the edges are stored as null, which resetForNewData reads as
+      // "use whatever this file holds".
+      S.program.since = S.since && S.since !== S.lo ? S.since : null;
+      S.program.until = S.until && S.until !== S.hi ? S.until : null;
+      remember();
       renderRack(); render();
     });
   }
+  // The floor is a methodological choice, so it lives on the program and is
+  // saved with it rather than being re-typed every session.
+  $("#min-views").addEventListener("change", (e) => {
+    S.program.min_views = Math.max(0, parseInt(e.target.value, 10) || 0);
+    e.target.value = S.program.min_views;
+    programChanged();
+  });
   $$(".views button").forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.view; render(); }));
-  // The program panel stays open beside the results, and folds away on a phone.
-  if (window.matchMedia("(max-width: 900px)").matches) $("#program").open = false;
 
   document.addEventListener("click", (e) => {
     if (e.target.id === "claim-edit") { S.program.claim = ""; programChanged(); }

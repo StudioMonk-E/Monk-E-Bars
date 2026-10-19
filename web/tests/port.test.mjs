@@ -11,13 +11,16 @@ import * as XLSX from "xlsx";
 
 import { parseNdjson, detect, parseRecords, parseTable, toInt } from "../js/ingest.js";
 import { setContractions, normalize, contentTokens, buildStopwords } from "../js/text.js";
-import { buildCorpus, filterDates, filterLanguages, retier } from "../js/corpus.js";
+import { buildCorpus, filterDates, filterLanguages, filterViews, retier } from "../js/corpus.js";
 import { addTokens, keyness, themeCounts, analyze } from "../js/lexical.js";
 import { pyRound, mostCommon } from "../js/util.js";
 import * as A from "../js/accounts.js";
 import { generate, setLanguageNames } from "../js/findings.js";
 import { accountsWorkbook, prepareAccounts } from "../js/export.js";
 import { discoverThemes } from "../js/topics.js";
+import * as H from "../js/hooks.js";
+import * as C from "../js/charts.js";
+import * as MO from "../js/months.js";
 import { readFollowers, looksLikeExport, buildAccountData } from "../js/account.js";
 import * as G from "../js/gains.js";
 
@@ -119,6 +122,30 @@ test("an until date includes the whole of that day", () => {
   assert.equal(filterDates(posts, "2026-03-11", null).length, 1);
 });
 
+test("a view floor drops thin posts but never one with no view count", () => {
+  const posts = [
+    { post_id: "a", view_count: 50_000, engagement_score: 100 },
+    { post_id: "b", view_count: 633, engagement_score: 80 },   // the loud percentage
+    { post_id: "c", view_count: 0, engagement_score: 90 },      // Instagram: no views given
+    { post_id: "d", engagement_score: 70 },                     // no column at all
+    { post_id: "e", view_count: 2000, engagement_score: 10 },   // exactly on the floor
+  ];
+  const kept = filterViews(posts, 2000).map((p) => p.post_id);
+  assert.deepEqual(kept, ["a", "c", "d", "e"]);
+  // A floor of zero is no floor, and the array comes back whole.
+  assert.equal(filterViews(posts, 0).length, 5);
+});
+
+test("a view floor changes which posts a weight class is cut from", () => {
+  const posts = [
+    { post_id: "a", view_count: 50_000, engagement_score: 100 },
+    { post_id: "b", view_count: 633, engagement_score: 500 },
+  ];
+  // Unfiltered, the thin post takes the top class on 633 views.
+  assert.equal(retier(posts, ["High", "Low"])[0].post_id, "b");
+  assert.equal(retier(filterViews(posts, 2000), ["High", "Low"])[0].post_id, "a");
+});
+
 test("a language filter and a retier leave the rest untouched", () => {
   const posts = [{ language: "nl", engagement_score: 1 }, { language: "en", engagement_score: 2 }];
   const kept = retier(filterLanguages(posts, ["NL"]), ["High"]);
@@ -201,6 +228,230 @@ const post = (id, handle, caption, likes, tags = "") => {
   r.data.user.username = handle;
   return r;
 };
+
+const hookPost = (id, caption, likes, platform = "tiktok") => ({
+  post_id: id, platform, caption_text: caption, engagement_score: likes,
+});
+
+test("a hook keeps the small words a vocabulary measure would drop", () => {
+  // "stuur dit naar" is three stopwords and it is the whole hook.
+  assert.deepEqual(H.hookTokens("Stuur dit naar je beste vriend, nu!", 6),
+    ["stuur", "dit", "naar", "je", "beste", "vriend"]);
+  // Hashtags, mentions and digits go, as everywhere else in the tool.
+  assert.deepEqual(H.hookTokens("#ad @tony 10 nieuwe reep", 6), ["nieuwe", "reep"]);
+});
+
+test("halves cut by rank inside each platform, and the middle post goes down", () => {
+  const posts = [
+    hookPost("a", "x", 100), hookPost("b", "x", 90), hookPost("c", "x", 80),
+    hookPost("i1", "x", 5, "instagram"), hookPost("i2", "x", 4, "instagram"),
+  ];
+  const { above, below, cuts } = H.halves(posts);
+  // TikTok: 3 posts, so one above and two below. Instagram: one each.
+  assert.deepEqual(above.map((p) => p.post_id).sort(), ["a", "i1"]);
+  assert.deepEqual(below.map((p) => p.post_id).sort(), ["b", "c", "i2"]);
+  // Each platform reports its own cut: likes on one are not likes on the other.
+  assert.deepEqual(cuts.map((c) => [c.platform, c.cut]), [["tiktok", 100], ["instagram", 5]]);
+});
+
+test("ties do not empty a half, which a median-value cut would", () => {
+  const posts = Array.from({ length: 8 }, (_, i) => hookPost(String(i), "x", 50));
+  const { above, below } = H.halves(posts);
+  assert.equal(above.length, 4);
+  assert.equal(below.length, 4);
+});
+
+test("an opening needs enough posts behind it before it is reported", () => {
+  const posts = [
+    hookPost("a", "stuur dit naar je vriend", 500),
+    hookPost("b", "stuur dit naar je moeder", 400),
+    hookPost("c", "stuur dit naar je zus", 300),
+    hookPost("d", "shop nu online vandaag", 10),
+    hookPost("e", "shop nu online morgen", 9),      // only two: below the floor
+    hookPost("f", "iets heel anders hier", 8),
+    hookPost("g", "nog iets anders hier", 7),
+  ];
+  const rows = H.openers(posts, { size: 3, minPosts: 3 });
+  assert.deepEqual(rows.map((r) => r.phrase), ["stuur dit naar"]);
+  const row = rows[0];
+  assert.equal(row.posts, 3);
+  // Seven posts halve into three above and four below, and all three of these
+  // are the strongest, so the opening lands in the better half every time.
+  assert.equal(row.in_better_half, 3);
+  assert.equal(row.share, 1);
+  assert.equal(row.median_engagement, 400);
+});
+
+test("a caption too short to have an opening is left out, not counted as blank", () => {
+  const posts = [hookPost("a", "hoi", 10), hookPost("b", "hoi", 9), hookPost("c", "hoi", 8)];
+  assert.deepEqual(H.openers(posts, { size: 3, minPosts: 1 }), []);
+  assert.deepEqual(H.commonOpenings(posts, { size: 3 }), []);
+});
+
+test("hook keyness reads openings only, not the rest of the caption", () => {
+  const above = [
+    hookPost("a", "raad de smaak van deze chocolade reep karamel zeezout", 100),
+    hookPost("b", "raad de smaak van onze nieuwe chocolade reep karamel", 90),
+    hookPost("c", "raad de smaak hiervan chocolade reep karamel zeezout", 80),
+  ];
+  const below = [
+    hookPost("d", "shop nu meteen deze chocolade reep karamel zeezout", 10),
+    hookPost("e", "shop nu meteen onze chocolade reep karamel zeezout", 9),
+    hookPost("f", "shop nu meteen hiervan chocolade reep karamel zeezout", 8),
+  ];
+  const words = H.hookKeyness(above, below, { minFreq: 3 }).map((r) => r.word);
+  assert.ok(words.includes("raad"));
+  // "chocolade" and "karamel" are in every caption but outside the opening,
+  // so they cannot distinguish the halves.
+  assert.ok(!words.includes("chocolade"));
+  assert.ok(!words.includes("karamel"));
+});
+
+const atPost = (id, iso, score, extra = {}) => ({
+  post_id: id, platform: "tiktok", caption_text: "x", engagement_score: score,
+  timestamp: iso, engagement_tier: "Heavyweight", ...extra,
+});
+
+test("a chart says so rather than drawing a lie when there is too little data", () => {
+  assert.match(C.timeline([atPost("a", "2026-09-01T00:00:00Z", 10)]), /Too few dated posts/);
+  assert.match(C.rankedCurve([]), /Too few posts/);
+  assert.match(C.viewsScatter([]), /view count/);
+  // Posts with no timestamp at all are not dated posts.
+  const undated = Array.from({ length: 9 }, (_, i) => ({ post_id: String(i), engagement_score: 1 }));
+  assert.match(C.timeline(undated), /Too few dated posts/);
+});
+
+test("the time bucket follows the span, and a long range refuses to draw", () => {
+  const span = (days) => Array.from({ length: 12 }, (_, i) => atPost(String(i),
+    new Date(Date.UTC(2026, 0, 1) + (i / 11) * days * 86400000).toISOString(), 10 + i));
+  assert.match(C.timeline(span(10)), /by day/);
+  assert.match(C.timeline(span(100)), /by week/);
+  assert.match(C.timeline(span(900)), /by month/);
+  // Daily buckets over five years would be thousands of columns.
+  const sparse = [atPost("a", "2000-01-01T00:00:00Z", 1), atPost("b", "2000-01-02T00:00:00Z", 1),
+                  atPost("c", "2000-01-03T00:00:00Z", 1), atPost("d", "2026-01-01T00:00:00Z", 1)];
+  assert.match(C.timeline(sparse), /too long to draw/);
+});
+
+test("the view floor is only drawn where it falls inside the axis", () => {
+  const pts = Array.from({ length: 10 }, (_, i) => atPost(String(i), "2026-09-01T00:00:00Z",
+    100 * (i + 1), { view_count: 10_000 * (i + 1) }));
+  // Inside the plotted range: drawn, and named.
+  assert.match(C.viewsScatter(pts, { floor: 50_000 }), /floor: 50,000 views/);
+  // Below everything plotted: a line hard against the axis would say nothing.
+  assert.ok(!/floor:/.test(C.viewsScatter(pts, { floor: 5 })));
+  assert.ok(!/floor:/.test(C.viewsScatter(pts, { floor: 0 })));
+});
+
+test("a chart escapes what it prints, since handles come from a capture", () => {
+  const pts = Array.from({ length: 8 }, (_, i) => atPost(String(i), "2026-09-01T00:00:00Z", 100,
+    { view_count: 1000 * (i + 1), author_handle: '<script>alert(1)</script>' }));
+  const svg = C.viewsScatter(pts);
+  assert.ok(!svg.includes("<script>"));
+  assert.ok(svg.includes("&lt;script&gt;"));
+});
+
+const mPost = (iso, views, extra = {}) => ({
+  post_id: iso + views + JSON.stringify(extra), platform: "table", caption_text: "x",
+  timestamp: iso, view_count: views, engagement_score: Math.round(views / 20), tags: {}, ...extra,
+});
+const monthOf = (m, views, extra) => views.map((v, i) =>
+  mPost(`2026-${String(m).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}T12:00:00Z`, v, extra));
+
+test("a spreadsheet keeps the columns the mapping did not claim", () => {
+  const rows = [{ caption: "hoi", views: "1,204", date: "2026-09-01", formaat: " video met mensen ", geboost: "nee", leeg: "" }];
+  const [post] = parseTable(rows, "sheet");
+  assert.equal(post.caption_text, "hoi");
+  // A comma is read as a thousands separator, which is how exports write it.
+  assert.equal(post.view_count, 1204);
+  // Trimmed, and a blank cell is absent rather than an empty-string tag.
+  assert.deepEqual(post.tags, { formaat: "video met mensen", geboost: "nee" });
+});
+
+test("a capture carries an empty tag set, so every post has the field", () => {
+  const [post] = parseRecords([ig("1", "hoi", 5)], "instagram");
+  assert.deepEqual(post.tags, {});
+});
+
+test("the median is the median, not the mean a single hit would drag", () => {
+  assert.equal(MO.median([1, 2, 3]), 2);
+  assert.equal(MO.median([1, 2, 3, 4]), 3);         // Python-style half-up on the pair
+  assert.equal(MO.median([10, 10, 10, 1_000_000]), 10);
+  assert.equal(MO.median([]), 0);
+});
+
+test("a month reports its baseline and its hit dependence apart", () => {
+  // One month carried by a hit, one month of the same total spread evenly.
+  const carried = monthOf(2, [100, 100, 100, 100, 9_600]);
+  const even = monthOf(3, [2_000, 2_000, 2_000, 2_000, 2_000]);
+  const { rows } = MO.byMonth([...carried, ...even]);
+  assert.deepEqual(rows.map((r) => r.month), ["2026-02", "2026-03"]);
+  // Identical totals, and the two readings separate them.
+  assert.equal(rows[0].total, rows[1].total);
+  assert.equal(rows[0].median, 100);
+  assert.equal(rows[1].median, 2_000);
+  assert.equal(rows[0].top3_share, 98);
+  assert.equal(rows[1].top3_share, 60);
+});
+
+test("undated posts are counted out loud, not quietly dropped from a trend", () => {
+  const posts = [...monthOf(2, [100, 200]), { post_id: "x", caption_text: "x", view_count: 50, engagement_score: 2, tags: {} }];
+  const { rows, undated } = MO.byMonth(posts);
+  assert.equal(undated, 1);
+  assert.equal(rows.reduce((s, r) => s + r.posts, 0), 2);
+});
+
+test("a month that scored nothing has no share, which is not zero percent", () => {
+  const { rows } = MO.byMonth(monthOf(4, [0, 0, 0, 0]));
+  assert.equal(rows[0].total, 0);
+  assert.equal(rows[0].top3_share, null);
+});
+
+test("a thin month is flagged, since three posts have no meaningful top three", () => {
+  const { rows } = MO.byMonth([...monthOf(2, [1, 2, 3]), ...monthOf(3, [1, 2, 3, 4])]);
+  assert.equal(rows[0].thin, true);
+  assert.equal(rows[1].thin, false);
+});
+
+test("a trend needs four usable months and compares thirds, not end months", () => {
+  const flat = [2, 3, 4, 5].flatMap((m) => monthOf(m, [1000, 1000, 1000, 1000]));
+  assert.equal(MO.readTrend(MO.byMonth(flat.slice(0, 8)).rows), null);   // two months
+  const steady = MO.readTrend(MO.byMonth(flat).rows);
+  assert.equal(steady.medianChange, 0);
+  assert.match(steady.reading, /Neither/);
+
+  // A baseline that halves across six months, hits held constant.
+  const falling = [2, 3, 4, 5, 6, 7].flatMap((m, i) =>
+    monthOf(m, Array.from({ length: 5 }, () => 10_000 - i * 1_000)));
+  const t = MO.readTrend(MO.byMonth(falling).rows);
+  assert.ok(t.medianChange <= -10);
+  assert.match(t.reading, /baseline has fallen/);
+});
+
+test("dimensions come from the tags, and an untagged post is named so", () => {
+  const posts = [
+    ...monthOf(2, [100], { tags: { formaat: "foto" }, media_type: "photo" }),
+    ...monthOf(2, [200], { tags: {}, media_type: "video" }),
+  ];
+  assert.deepEqual(MO.dimensions(posts), ["media type", "formaat"]);
+  assert.equal(MO.valueOf(posts[0], "formaat"), "foto");
+  assert.equal(MO.valueOf(posts[1], "formaat"), MO.UNTAGGED);
+  assert.equal(MO.valueOf(posts[1], "media type"), "video");
+  assert.deepEqual(MO.valuesOf(posts, "formaat").map((v) => v.value).sort(), ["foto", MO.UNTAGGED]);
+});
+
+test("the mix carries the count behind every median", () => {
+  const posts = [
+    ...monthOf(2, [1000, 2000, 3000], { tags: { f: "video" } }),
+    ...monthOf(2, [100], { tags: { f: "foto" } }),
+  ];
+  const mix = MO.mixByMonth(posts, "f");
+  assert.deepEqual(mix.values, ["video", "foto"]);
+  assert.equal(mix.rows[0].counts.video, 3);
+  assert.equal(mix.rows[0].counts.foto, 1);
+  assert.equal(mix.rows[0].medians.video, 2000);
+  assert.equal(mix.rows[0].medians.foto, 100);
+});
 
 test("accounts rank by best post and classify first match wins", () => {
   const c = acctCfg();

@@ -137,6 +137,24 @@ def filter_dates(df: pd.DataFrame, since=None, until=None) -> pd.DataFrame:
     return df[_window(ts, since, until)].reset_index(drop=True)
 
 
+def filter_views(df: pd.DataFrame, min_views: int = 0) -> pd.DataFrame:
+    """Keep posts that cleared a view floor, before anything is ranked.
+
+    A thin denominator makes a loud percentage: eighty interactions on six
+    hundred views reads as thirteen percent and then outranks a post that
+    thousands of people actually saw.
+
+    A view count of zero means the platform never gave one -- Instagram photos
+    carry no views at all -- and an unknown figure cannot fail a test, so those
+    posts are kept. This is the rule the account filters already use for
+    followers: a missing number never excludes.
+    """
+    if not min_views or df.empty or "view_count" not in df.columns:
+        return df
+    views = pd.to_numeric(df["view_count"], errors="coerce").fillna(0)
+    return df[(views <= 0) | (views >= min_views)].reset_index(drop=True)
+
+
 def build_corpus(
     posts: Iterable[PostRecord],
     language: Optional[str] = "en",
@@ -144,6 +162,7 @@ def build_corpus(
     detect_lang: bool = True,
     since=None,
     until=None,
+    min_views: int = 0,
 ) -> pd.DataFrame:
     """Build the analysis-ready corpus DataFrame from PostRecords.
 
@@ -164,6 +183,11 @@ def build_corpus(
         works, including ``"2025-08-01"``. Posts with no timestamp are dropped
         when a window is set, because there is no honest way to place them in
         it. The count of those is recorded on ``df.attrs["undated_removed"]``.
+    min_views : int
+        Drop posts seen by fewer than this many people, before ranking. A post
+        whose platform reports no view count is kept, so an Instagram capture is
+        unaffected. The count dropped is recorded on
+        ``df.attrs["under_view_floor"]``.
     """
     rows = [p.to_dict() for p in posts]
     df = pd.DataFrame(rows)
@@ -186,7 +210,15 @@ def build_corpus(
         if df.empty:
             return df
 
-    # 3. language
+    # 3. view floor, also before detection: the slow step runs on fewer rows
+    if min_views:
+        before_views = len(df)
+        df = filter_views(df, min_views)
+        df.attrs["under_view_floor"] = before_views - len(df)
+        if df.empty:
+            return df
+
+    # 4. language
     if detect_lang or language is not None:
         df["language"] = df["caption_text"].apply(detect_language)
     if language is not None:
@@ -195,13 +227,13 @@ def build_corpus(
     if df.empty:
         return df
 
-    # 4. engagement score, rank, tier
+    # 5. engagement score, rank, tier
     df["engagement_score"] = df["engagement_score"].fillna(0).astype(int)
     df = df.sort_values("engagement_score", ascending=False, kind="stable").reset_index(drop=True)
     df["engagement_rank"] = df.index + 1
     df["engagement_tier"] = assign_tiers(len(df), list(tier_labels))
 
-    # 5. tidy hashtag/mention columns back into lists for convenience
+    # 6. tidy hashtag/mention columns back into lists for convenience
     df["hashtag_list"] = df["hashtags"].apply(
         lambda s: [t.strip() for t in s.split(",") if t.strip()] if isinstance(s, str) else []
     )

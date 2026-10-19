@@ -28,6 +28,12 @@ language: es
 since: 2025-01-01        # or null. Any date, down to the day.
 until: null
 
+# Drop posts seen by fewer than this many people, before anything is ranked. A
+# post on 600 views with 80 interactions reads as a 13% rate and outranks a post
+# thousands of people saw. 0 is no floor. A post whose platform gives no view
+# count is always kept, so this does nothing to an Instagram-only capture.
+min_views: 0
+
 tier_labels: [High, Medium, Low]
 query_hashtags: ["#tuseedtag"]     # the seed tags scraped; excluded from co-occurrence
 stopwords_extra: []                # topic filler that shows up in Top Words

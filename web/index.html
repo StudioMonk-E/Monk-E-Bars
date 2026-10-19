@@ -32,8 +32,8 @@
       </label>
       <p class="note" style="margin-top:22px">
         Nothing is uploaded: the files are read inside this tab. The platform is read from the file, and a
-        spreadsheet needs only a column of post text. Captures from two platforms are refused in one session,
-        because pooling them would rank two engagement scales against each other.
+        spreadsheet needs only a column of post text. An Instagram and a TikTok capture can be worked in one
+        session: each platform is ranked inside itself, because likes on one are not likes on the other.
       </p>
     </section>
 
@@ -51,10 +51,11 @@
       <div class="deck" id="deck">
         <div class="deck-top">
           <nav class="views" role="tablist" aria-label="View">
-            <button role="tab" data-view="session" aria-selected="true">Session<small>overview</small></button>
-            <button role="tab" data-view="reps" aria-selected="false">Reps<small>words</small></button>
-            <button role="tab" data-view="members" aria-selected="false">Members<small>accounts</small></button>
-            <button role="tab" data-view="log" aria-selected="false">Training log<small>posts</small></button>
+            <button role="tab" data-view="session" aria-selected="true">Overview</button>
+            <button role="tab" data-view="reps" aria-selected="false">Words</button>
+            <button role="tab" data-view="months" aria-selected="false">Months</button>
+            <button role="tab" data-view="members" aria-selected="false">Accounts</button>
+            <button role="tab" data-view="log" aria-selected="false">Posts</button>
           </nav>
           <details class="menu" id="export-menu">
             <summary class="btn small primary">Export</summary>
@@ -62,13 +63,14 @@
           </details>
         </div>
         <div class="deck-rack">
-          <button class="btn small" type="button" id="rack-toggle" aria-expanded="false" aria-controls="rack-panel">The rack</button>
+          <button class="btn small" type="button" id="rack-toggle" aria-expanded="false" aria-controls="rack-panel">Scope</button>
+          <button class="btn small" type="button" id="setup-toggle" aria-expanded="false" aria-controls="setup-panel">Setup</button>
           <span id="rack-summary"></span>
           <button class="btn small" id="reset" type="button">New file</button>
         </div>
       </div>
       <div id="rack-panel" class="rack-panel" hidden>
-        <p class="plain">What is in, what is out. The file is read once, so every change here applies at once.</p>
+        <p class="plain">What is in this session and what is out. The file is read once, so every change here applies at once.</p>
         <div id="files"></div>
         <div id="mapping"></div>
         <div class="grid settings">
@@ -79,19 +81,20 @@
           </div>
           <label class="field"><span>Posted from</span><input type="date" id="since"></label>
           <label class="field"><span>Posted until</span><input type="date" id="until"></label>
+          <label class="field"><span>Minimum views</span><input type="number" id="min-views" min="0" step="100" value="0">
+            <small class="plain">Thin posts out before ranking. A post with no view count is kept.</small></label>
         </div>
+      </div>
+      <div id="setup-panel" class="rack-panel" hidden>
+        <p class="plain">How this corpus is read: the seed hashtag, the words to drop, the themes and the
+          account types. Saved as a program, so the next session starts where this one left off.</p>
+        <div id="program-body"></div>
       </div>
       <div id="warnings"></div>
 
-      <div class="layout">
-        <details class="program" id="program" open>
-          <summary class="gym">Program <span class="plain-inline">the saved setup</span></summary>
-          <div id="program-body"></div>
-        </details>
-        <div class="results">
-          <div id="jump"></div>
-          <div id="view"></div>
-        </div>
+      <div class="results">
+        <div id="jump"></div>
+        <div id="view"></div>
       </div>
     </section>
   </main>
