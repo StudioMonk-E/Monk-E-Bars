@@ -1257,14 +1257,38 @@ function periodsSection(rows, limited, dim, metric, metricName) {
     const pct = suffix === "%" ? `${d > 0 ? "+" : ""}${d} pts` : x ? `${d > 0 ? "+" : ""}${Math.round((d / x) * 100)}%` : "\u2013";
     return `<b class="${d < 0 ? "down" : d > 0 ? "up" : ""}">${pct}</b>`;
   };
+  // A period of three months beats a period of two on anything that adds up,
+  // whatever happened inside them, so the figures that scale with length are
+  // given per month beside their totals.
+  const pct = (v) => (v == null ? "\u2013" : `${v}%`);
   h += table([
-    { figure: `posts`, earlier: fmt(sa.posts), later: fmt(sb.posts), change: delta(sa.posts, sb.posts) },
+    { figure: "months in the period", earlier: fmt(sa.months), later: fmt(sb.months), change: "" },
+    { figure: "posts", earlier: fmt(sa.posts), later: fmt(sb.posts), change: delta(sa.posts, sb.posts) },
+    { figure: "posts per month", earlier: fmt(sa.posts_per_month), later: fmt(sb.posts_per_month),
+      change: delta(sa.posts_per_month, sb.posts_per_month) },
     { figure: `median ${metricName} per post`, earlier: fmt(sa.median), later: fmt(sb.median), change: delta(sa.median, sb.median) },
-    { figure: "top-3 share of the period", earlier: sa.top3_share == null ? "\u2013" : `${sa.top3_share}%`,
-      later: sb.top3_share == null ? "\u2013" : `${sb.top3_share}%`, change: delta(sa.top3_share, sb.top3_share, "%") },
+    { figure: "top-3 share, typical month", earlier: pct(sa.top3_month), later: pct(sb.top3_month),
+      change: delta(sa.top3_month, sb.top3_month, "%") },
     { figure: `total ${metricName}`, earlier: fmt(sa.total), later: fmt(sb.total), change: delta(sa.total, sb.total) },
+    { figure: `${metricName} per month`, earlier: fmt(sa.total_per_month), later: fmt(sb.total_per_month),
+      change: delta(sa.total_per_month, sb.total_per_month) },
   ], ["figure", "earlier", "later", "change"], { id: "periods", numeric: ["earlier", "later", "change"],
       render: { earlier: (r) => r.earlier, later: (r) => r.later, change: (r) => r.change } });
+
+  if (sa.months !== sb.months) {
+    h += `<div class="warn"><span>These periods are ${fmt(sa.months)} and ${fmt(sb.months)} months long. `
+      + `Read the per-month rows, not the totals: posts and ${metricName} add up over time, so the longer `
+      + `period wins those whatever happened inside it. The median per post and the typical month's top-3 `
+      + `share do not depend on length.</span></div>`;
+  }
+
+  // A period running to this month is running to today, not to month end.
+  const now = M.currentMonth();
+  if (safe.bTo === now || safe.aTo === now) {
+    h += `<div class="warn"><span>${esc(M.monthName(now))} is not over. A period ending in it is being `
+      + `compared as though it were a whole month, which pulls its posts and its total down. End the `
+      + `later period on the month before, or read the median per post, which is unaffected.</span></div>`;
+  }
 
   if (dim) {
     const shift = M.mixShift(A, B, dim);

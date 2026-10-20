@@ -245,15 +245,34 @@ export function periodStats(posts, metric = "views") {
   const vals = read.map(get);
   const total = vals.reduce((s, v) => s + v, 0);
   const top3 = vals.slice().sort((a, b) => b - a).slice(0, 3).reduce((s, v) => s + v, 0);
+
+  // Three months against two is not a fair fight on any figure that adds up
+  // over time, and periods of different lengths are the normal case once a
+  // reader starts choosing them. The per-month figures are what survives that;
+  // the median per post never depended on length in the first place.
+  const rows = byMonth(posts, metric).rows;
+  const months = rows.length;
+  // The top three of a long period is a smaller share of it than the top three
+  // of a short one, so the period-wide share is not comparable either. The
+  // typical month's share is.
+  const shares = rows.map((r) => r.top3_share).filter((v) => v != null);
+
   return {
     posts: posts.length,
     measured: read.length,
+    months,
     median: median(vals),
     total,
     top3_share: total ? Math.round((top3 / total) * 100) : null,
-    perMonth: new Set(posts.map((p) => monthKey(p.timestamp))).size,
+    top3_month: shares.length ? median(shares) : null,
+    posts_per_month: months ? Math.round((posts.length / months) * 10) / 10 : null,
+    total_per_month: months ? Math.round(total / months) : null,
   };
 }
+
+/** The month now, so a period ending in it can be flagged as unfinished. */
+export const currentMonth = (now = new Date()) =>
+  `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 
 /**
  * How a dimension's mix differs between two periods, in points.

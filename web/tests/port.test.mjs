@@ -524,6 +524,38 @@ test("an account's month needs enough readable posts, not enough posts", () => {
   assert.deepEqual(series.map((x) => x.handle), ["a"]);
 });
 
+test("a period gives per-month figures, so unequal lengths cannot mislead", () => {
+  const mk = (m, n, v) => Array.from({ length: n }, (_, i) => mPost(
+    `2026-${String(m).padStart(2, "0")}-${String((i % 27) + 1).padStart(2, "0")}T12:00:00Z`, v));
+  // Three months against two, with identical behaviour inside them.
+  const three = [...mk(2, 10, 100), ...mk(3, 10, 100), ...mk(4, 10, 100)];
+  const two = [...mk(9, 10, 100), ...mk(10, 10, 100)];
+  const a = MO.periodStats(three), b = MO.periodStats(two);
+
+  assert.equal(a.months, 3);
+  assert.equal(b.months, 2);
+  // The totals differ purely because one period is longer.
+  assert.equal(a.posts, 30);
+  assert.equal(b.posts, 20);
+  assert.equal(a.total, 3000);
+  assert.equal(b.total, 2000);
+  // Per month, and per post, nothing changed at all -- which is the truth.
+  assert.equal(a.posts_per_month, 10);
+  assert.equal(b.posts_per_month, 10);
+  assert.equal(a.total_per_month, 1000);
+  assert.equal(b.total_per_month, 1000);
+  assert.equal(a.median, b.median);
+  // The top three of a longer period is a smaller slice of it, so the
+  // period-wide share is not comparable; the typical month's share is.
+  assert.ok(a.top3_share < b.top3_share);
+  assert.equal(a.top3_month, b.top3_month);
+});
+
+test("the current month is named, so a period ending in it can be flagged", () => {
+  assert.equal(MO.currentMonth(new Date(Date.UTC(2026, 9, 20))), "2026-10");
+  assert.equal(MO.currentMonth(new Date(Date.UTC(2026, 0, 1))), "2026-01");
+});
+
 test("a period reports what its figures rest on", () => {
   const reels = monthOf(2, [1000, 3000]);
   const photos = monthOf(2, [0, 0]).map((p) => ({ ...p, view_count: 0 }));
