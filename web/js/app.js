@@ -442,7 +442,7 @@ const COL_LABELS = {
   best_caption: "best caption", excluded_because: "why excluded",
   follower_count: "followers", full_name: "name", detected_language: "language",
   in_better_half: "in better half", median_engagement: "median engagement",
-  top3_share: "top-3 share", a_pct: "earlier", b_pct: "later",
+  top3_share: "top-3 share", a_pct: "earlier", b_pct: "later", measured: "with views",
 };
 const colLabel = (c) => COL_LABELS[c] || String(c).replace(/_/g, " ");
 
@@ -1064,8 +1064,19 @@ function monthsView() {
 
   if (metric === "engagement") {
     h += `<p class="plain">No post in this selection carries a view count, so everything below is `
-      + `likes plus comments. Instagram captures carry no views; a CSV exported from Meta Business `
-      + `Suite or TikTok Studio does, and reading that here changes these figures to real views.</p>`;
+      + `likes plus comments. A CSV exported from Meta Business Suite or TikTok Studio carries `
+      + `views, and reading that here changes these figures to real views.</p>`;
+  } else {
+    // An Instagram capture mixes Reels, which report plays, with photos and
+    // carousels, which report nothing. Counting those as zero views would drag
+    // every median down, so they are left out and said out loud instead.
+    const blind = M.unmeasured(posts, metric);
+    if (blind) {
+      h += `<p class="plain">${fmt(blind)} of ${fmt(posts.length)} posts carry no view count and are `
+        + `left out of every view figure below, rather than counted as zero views. On Instagram a `
+        + `Reel reports plays and a photo or carousel reports nothing, so the figures here rest on `
+        + `${fmt(posts.length - blind)} posts.</p>`;
+    }
   }
 
   // Limiting to one value, so boosted posts can be set aside before reading.
@@ -1114,10 +1125,11 @@ function monthsView() {
   h += `<p class="plain">A dashed column is a month of under four posts, where a top three means little. `
     + `A dash is a month that scored nothing at all.</p>`;
 
-  h += table(rows.map((r) => ({ month: r.label, posts: r.posts, median: r.median,
-      total: r.total, top3_share: r.top3_share })),
-    ["month", "posts", "median", "total", "top3_share"],
-    { id: "months", numeric: ["posts", "median", "total", "top3_share"], sortable: true,
+  const anyBlind = rows.some((r) => r.measured !== r.posts);
+  h += table(rows.map((r) => ({ month: r.label, posts: r.posts, measured: r.measured,
+      median: r.median, total: r.total, top3_share: r.top3_share })),
+    ["month", "posts", ...(anyBlind ? ["measured"] : []), "median", "total", "top3_share"],
+    { id: "months", numeric: ["posts", "measured", "median", "total", "top3_share"], sortable: true,
       render: { top3_share: (r) => (r.top3_share == null ? "\u2013" : `${r.top3_share}%`) } });
 
   const dim = dims.includes(st.dim) ? st.dim : dims[0];

@@ -30,9 +30,32 @@ export const monthName = (key) => {
     .replace(" ", " ");
 };
 
-/** True when any post carries a view count. Instagram captures carry none, so
- *  a view-based reading has to fall back to likes plus comments and say so. */
+/** True when any post carries a view count, which decides whether a session
+ *  can be read on views at all. */
 export const hasViews = (posts) => posts.some((p) => p.view_count > 0);
+
+/**
+ * The values a metric can honestly be read from.
+ *
+ * A post whose platform never reported a view count is not a post with zero
+ * views, and counting it as one drags every median toward the floor. An
+ * Instagram capture is the case that matters: a Reel carries play_count and a
+ * photo or carousel carries nothing, so a month that is half photos would
+ * otherwise report half the median it should. Those posts are left out of the
+ * view figures, and the count of them is reported rather than hidden.
+ *
+ * Likes and comments are different: every post has them, and a post with none
+ * genuinely scored zero.
+ */
+export function measured(posts, metric = "views") {
+  return metric === "views" ? posts.filter((p) => p.view_count > 0) : posts;
+}
+const valueOfMetric = (metric) => (metric === "views"
+  ? (p) => p.view_count || 0
+  : (p) => p.engagement_score || 0);
+
+/** How many posts in a set cannot answer a view-based question. */
+export const unmeasured = (posts, metric = "views") => posts.length - measured(posts, metric).length;
 
 /**
  * Every tag column present, plus the ones the capture already carries.
@@ -82,7 +105,7 @@ export function valuesOf(posts, dim) {
  * dropping a tenth of a capture out of a trend is how a trend gets invented.
  */
 export function byMonth(posts, metric = "views") {
-  const get = metric === "views" ? (p) => p.view_count || 0 : (p) => p.engagement_score || 0;
+  const get = valueOfMetric(metric);
   const groups = new Map();
   let undated = 0;
   for (const p of posts) {
@@ -92,20 +115,25 @@ export function byMonth(posts, metric = "views") {
     groups.get(k).push(p);
   }
   const rows = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([key, ps]) => {
-    const vals = ps.map(get);
+    const read = measured(ps, metric);
+    const vals = read.map(get);
     const total = vals.reduce((s, v) => s + v, 0);
     const top3 = vals.slice().sort((a, b) => b - a).slice(0, 3).reduce((s, v) => s + v, 0);
     return {
       month: key,
       label: monthName(key),
       posts: ps.length,
+      // What the figures are actually taken over, which is fewer than `posts`
+      // wherever the platform reported no views.
+      measured: read.length,
       median: median(vals),
       total,
       // Undefined rather than 0 when the month scored nothing at all: a share
       // of nothing is not zero percent, it is unanswerable.
       top3_share: total ? Math.round((top3 / total) * 100) : null,
-      // A month of one or two posts cannot have a meaningful top three.
-      thin: ps.length < 4,
+      // A month of one or two readable posts cannot have a meaningful top
+      // three, whatever else was posted that month.
+      thin: read.length < 4,
       items: ps,
     };
   });
@@ -120,7 +148,7 @@ export function byMonth(posts, metric = "views") {
  * is only an explanation if photos also do worse.
  */
 export function mixByMonth(posts, dim, metric = "views") {
-  const get = metric === "views" ? (p) => p.view_count || 0 : (p) => p.engagement_score || 0;
+  const get = valueOfMetric(metric);
   const { rows } = byMonth(posts, metric);
   const values = valuesOf(posts, dim).map((v) => v.value);
   return {
@@ -129,8 +157,9 @@ export function mixByMonth(posts, dim, metric = "views") {
       const counts = {}, medians = {};
       for (const v of values) {
         const ps = r.items.filter((p) => valueOf(p, dim) === v);
+        const read = measured(ps, metric);
         counts[v] = ps.length;
-        medians[v] = ps.length ? median(ps.map(get)) : null;
+        medians[v] = read.length ? median(read.map(get)) : null;
       }
       return { month: r.month, label: r.label, posts: r.posts, counts, medians };
     }),
@@ -211,12 +240,14 @@ export function inPeriod(posts, from, to) {
 
 /** The headline figures for one period, on the same definitions as a month. */
 export function periodStats(posts, metric = "views") {
-  const get = metric === "views" ? (p) => p.view_count || 0 : (p) => p.engagement_score || 0;
-  const vals = posts.map(get);
+  const get = valueOfMetric(metric);
+  const read = measured(posts, metric);
+  const vals = read.map(get);
   const total = vals.reduce((s, v) => s + v, 0);
   const top3 = vals.slice().sort((a, b) => b - a).slice(0, 3).reduce((s, v) => s + v, 0);
   return {
     posts: posts.length,
+    measured: read.length,
     median: median(vals),
     total,
     top3_share: total ? Math.round((top3 / total) * 100) : null,
@@ -259,14 +290,16 @@ export function mixShift(a, b, dim) {
  * would draw a fall nobody had.
  */
 export function byAccountMonth(posts, metric = "views", { minPosts = 3 } = {}) {
-  const get = metric === "views" ? (p) => p.view_count || 0 : (p) => p.engagement_score || 0;
+  const get = valueOfMetric(metric);
   const months = [...new Set(posts.filter((p) => p.timestamp).map((p) => monthKey(p.timestamp)))].sort();
   const handles = [...new Set(posts.map((p) => p.author_handle).filter(Boolean))];
 
   const series = handles.map((handle) => {
     const mine = posts.filter((p) => p.author_handle === handle && p.timestamp);
     const points = months.map((m) => {
-      const ps = mine.filter((p) => monthKey(p.timestamp) === m);
+      // Counted on the posts the metric can be read from: three photos in a
+      // month answer nothing about views.
+      const ps = measured(mine.filter((p) => monthKey(p.timestamp) === m), metric);
       return ps.length >= minPosts ? { month: m, median: median(ps.map(get)), posts: ps.length } : null;
     });
     const seen = points.filter(Boolean);

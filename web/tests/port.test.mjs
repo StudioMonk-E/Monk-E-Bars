@@ -481,6 +481,58 @@ test("the mix carries the count behind every median", () => {
   assert.equal(mix.rows[0].medians.foto, 100);
 });
 
+test("a post with no view count is left out of a view median, not counted as zero", () => {
+  // An Instagram month: two Reels that report plays, three photos that report
+  // nothing. Counted as zero the median would be 0; the honest median is 5000.
+  const reels = monthOf(2, [4000, 6000]);
+  const photos = monthOf(2, [0, 0, 0]).map((p) => ({ ...p, view_count: 0, engagement_score: 90 }));
+  const posts = [...reels, ...photos];
+
+  assert.equal(MO.measured(posts, "views").length, 2);
+  assert.equal(MO.unmeasured(posts, "views"), 3);
+  // Likes are different: every post has them and a zero is a real zero.
+  assert.equal(MO.measured(posts, "engagement").length, 5);
+
+  const row = MO.byMonth(posts, "views").rows[0];
+  assert.equal(row.posts, 5);        // the month did hold five posts
+  assert.equal(row.measured, 2);     // two of them can answer a view question
+  assert.equal(row.median, 5000);    // not 0, which counting photos would give
+  assert.equal(row.total, 10_000);
+
+  // A month whose readable posts are too few is thin, whatever else it held.
+  assert.equal(row.thin, true);
+});
+
+test("a thin month is judged on readable posts, not on everything posted", () => {
+  const reels = monthOf(3, [100, 200, 300, 400]);
+  const photos = monthOf(3, [0, 0, 0, 0, 0]).map((p) => ({ ...p, view_count: 0 }));
+  const row = MO.byMonth([...reels, ...photos], "views").rows[0];
+  assert.equal(row.posts, 9);
+  assert.equal(row.measured, 4);
+  assert.equal(row.thin, false);
+});
+
+test("an account's month needs enough readable posts, not enough posts", () => {
+  const mk = (handle, month, views) => monthOf(month, views, { author_handle: handle });
+  const blind = (ps) => ps.map((p) => ({ ...p, view_count: 0 }));
+  const posts = [
+    ...mk("a", 2, [100, 100, 100]), ...mk("a", 3, [200, 200, 200]),
+    // b posted plenty, but none of it reports views.
+    ...blind(mk("b", 2, [1, 1, 1, 1])), ...blind(mk("b", 3, [1, 1, 1, 1])),
+  ];
+  const { series } = MO.byAccountMonth(posts, "views", { minPosts: 3 });
+  assert.deepEqual(series.map((x) => x.handle), ["a"]);
+});
+
+test("a period reports what its figures rest on", () => {
+  const reels = monthOf(2, [1000, 3000]);
+  const photos = monthOf(2, [0, 0]).map((p) => ({ ...p, view_count: 0 }));
+  const st = MO.periodStats([...reels, ...photos], "views");
+  assert.equal(st.posts, 4);
+  assert.equal(st.measured, 2);
+  assert.equal(st.median, 2000);
+});
+
 test("a sheet can name its own platform, and two of them stay apart", () => {
   const rows = [
     { caption: "a", platform: "Instagram", views: 10 },
