@@ -1089,7 +1089,11 @@ function monthsView() {
     // value both come out of someone's spreadsheet, so any delimiter joining
     // them could occur inside one of them -- and a NUL, which could not, does
     // not survive an HTML attribute: the parser replaces it.
-    limitPairs = dims.flatMap((d) => M.valuesOf(posts, d).map((v) => [d, v.value, v.posts]));
+    // Account is deliberately absent here: Scope owns narrowing to one brand,
+    // and offering it twice let a reader narrow in the place that also silently
+    // emptied the comparison against the other brands.
+    limitPairs = dims.filter((d) => d !== "account")
+      .flatMap((d) => M.valuesOf(posts, d).map((v) => [d, v.value, v.posts]));
     h += `<div class="grid two"><label class="field"><span>Limit to</span><select id="m-limit">`
       + `<option value="">every post</option>`
       + limitPairs.map(([d, v, n], i) => `<option value="${i}"${
@@ -1152,9 +1156,12 @@ function monthsView() {
 
   h += periodsSection(rows, limited, dim, metric, metricName);
   // Deliberately the unnarrowed set: narrowing to our own account and then
-  // asking whether the others fell would answer itself.
-  const everyone = S.months.limitCol && S.months.limitVal
-    ? current().everyAccount.filter((x) => M.valueOf(x, S.months.limitCol) === S.months.limitVal)
+  // asking whether the others fell would answer itself. A limit on anything
+  // else -- a platform, a tag -- does carry over, since it narrows all the
+  // accounts alike and keeps the comparison fair.
+  const lc = S.months.limitCol, lv = S.months.limitVal;
+  const everyone = lc && lv && lc !== "account"
+    ? current().everyAccount.filter((x) => M.valueOf(x, lc) === lv)
     : current().everyAccount;
   h += benchmarkSection(everyone, metric, metricName);
   return h;
@@ -1185,6 +1192,9 @@ function benchmarkSection(posts, metric, metricName) {
     + `indexed to its own first month at 100, because an account with four times the following has `
     + `four times the ${metricName} whatever happens.`);
 
+  h += `<p class="plain">Set in Scope which account is ours and the rest of this page reads only that one. `
+    + `This section keeps every account either way, because narrowing to ours and then asking whether `
+    + `the others fell would answer itself.</p>`;
   h += `<label class="field"><span>Our account</span><select id="m-focus">`
     + series.map((x) => `<option value="${esc(x.handle)}"${x.handle === focus ? " selected" : ""}>`
       + `${esc(x.handle)} (${fmt(x.posts)} posts)</option>`).join("") + `</select></label>`;
