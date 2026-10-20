@@ -481,6 +481,78 @@ test("the mix carries the count behind every median", () => {
   assert.equal(mix.rows[0].medians.foto, 100);
 });
 
+test("a sheet can name its own platform, and two of them stay apart", () => {
+  const rows = [
+    { caption: "a", platform: "Instagram", views: 10 },
+    { caption: "b", platform: "tiktok", views: 20 },
+    { caption: "c", views: 30 },
+  ];
+  const posts = parseTable(rows, "sheet");
+  assert.deepEqual(posts.map((p) => p.platform), ["instagram", "tiktok", "table"]);
+  assert.deepEqual(MO.platformsIn(posts), ["instagram", "table", "tiktok"]);
+  // Offered for grouping only when a session actually holds more than one.
+  assert.ok(MO.dimensions(posts).includes("platform"));
+  assert.ok(!MO.dimensions(parseTable([rows[0]], "s")).includes("platform"));
+});
+
+test("account is a dimension once a session holds more than one", () => {
+  const one = monthOf(2, [1, 2], { author_handle: "tonys" });
+  const two = monthOf(2, [3, 4], { author_handle: "benjerry" });
+  assert.ok(!MO.dimensions(one).includes("account"));
+  assert.ok(MO.dimensions([...one, ...two]).includes("account"));
+  assert.equal(MO.valueOf(one[0], "account"), "tonys");
+});
+
+test("an account's thin month carries no point, rather than a fall nobody had", () => {
+  const posts = [
+    ...monthOf(2, [100, 100, 100], { author_handle: "a" }),
+    ...monthOf(3, [50], { author_handle: "a" }),            // one post: not a median
+    ...monthOf(4, [50, 50, 50], { author_handle: "a" }),
+    ...monthOf(2, [200, 200, 200], { author_handle: "b" }),
+    ...monthOf(4, [200, 200, 200], { author_handle: "b" }),
+  ];
+  const { months, series } = MO.byAccountMonth(posts, "views", { minPosts: 3 });
+  assert.deepEqual(months, ["2026-02", "2026-03", "2026-04"]);
+  const a = series.find((x) => x.handle === "a");
+  assert.equal(a.points[1], null);                 // March is skipped, not zero
+  assert.equal(a.points[0].index, 100);            // indexed to its own first month
+  assert.equal(a.points[2].index, 50);
+  assert.equal(a.change, -50);
+  // b held flat and is unaffected by a's gap.
+  assert.equal(series.find((x) => x.handle === "b").change, 0);
+});
+
+test("an account with only one usable month is left out of the comparison", () => {
+  const posts = [
+    ...monthOf(2, [10, 10, 10], { author_handle: "solo" }),
+    ...monthOf(2, [10, 10, 10], { author_handle: "pair" }),
+    ...monthOf(3, [10, 10, 10], { author_handle: "pair" }),
+  ];
+  assert.deepEqual(MO.byAccountMonth(posts).series.map((x) => x.handle), ["pair"]);
+});
+
+test("the benchmark reads our change against the median of the others", () => {
+  const mk = (handle, from, to) => [
+    ...monthOf(2, [from, from, from], { author_handle: handle }),
+    ...monthOf(6, [to, to, to], { author_handle: handle }),
+  ];
+  // Everyone down about the same: the platform, not us.
+  let s = MO.byAccountMonth([...mk("us", 100, 50), ...mk("a", 100, 50), ...mk("b", 100, 55)]).series;
+  let b = MO.benchmark(s, "us");
+  assert.equal(b.mine, -50);
+  assert.ok(b.theirs <= -40);
+  assert.match(b.reading, /platform rather than at the content/);
+
+  // Only we fell: ours.
+  s = MO.byAccountMonth([...mk("us", 100, 50), ...mk("a", 100, 100), ...mk("b", 100, 102)]).series;
+  b = MO.benchmark(s, "us");
+  assert.match(b.reading, /fell while the others held/);
+
+  // A single other account is not a benchmark.
+  s = MO.byAccountMonth([...mk("us", 100, 50), ...mk("a", 100, 100)]).series;
+  assert.equal(MO.benchmark(s, "us"), null);
+});
+
 test("the default periods are the thirds the reading already describes", () => {
   const rows = MO.byMonth([2, 3, 4, 5, 6, 7].flatMap((m) => monthOf(m, [1, 2, 3, 4, 5]))).rows;
   assert.deepEqual(MO.defaultPeriods(rows),

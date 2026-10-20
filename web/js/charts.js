@@ -288,3 +288,60 @@ export function mixBars(rows, values, { caption = "" } = {}) {
     + `${axisLabel(PAD.l - 8, top + 9, "100%", "end")}${axisLabel(PAD.l - 8, top + rowH, "0", "end")}`
     + ticks + `</svg><div class="legend">${legend}</div></div>`;
 }
+
+/**
+ * One line per account, indexed to each account's own first month at 100.
+ *
+ * Height would otherwise just report follower count. Indexing compares the
+ * shape of the lines, which is the only way "did everyone fall" has an answer.
+ * The focus account is drawn in gold over the rest; a month where an account
+ * posted too little carries no point, and the line jumps the gap rather than
+ * dropping to zero through it.
+ */
+export function indexedLines(months, series, { focus = null, caption = "" } = {}) {
+  if (!months.length || !series.length) return note("Not enough accounts with two or more months to compare.");
+
+  const all = series.flatMap((sx) => sx.points.filter(Boolean).map((pt) => pt.index));
+  const hi = Math.max(...all, 120), lo = Math.min(...all, 80);
+  const capH = 18, rowH = 180, h = PAD.t + capH + rowH + 30;
+  const top = PAD.t + capH, iw = W - PAD.l - PAD.r;
+  const x = (i) => (months.length < 2 ? PAD.l + iw / 2 : PAD.l + (i / (months.length - 1)) * iw);
+  const y = (v) => top + rowH - ((v - lo) / Math.max(1, hi - lo)) * rowH;
+
+  // 100 is each account's own starting level; it is the line that matters.
+  const baseline = `<line x1="${PAD.l}" y1="${y(100).toFixed(1)}" x2="${W - PAD.r}" y2="${y(100).toFixed(1)}" `
+    + `stroke="var(--ink-35)" stroke-dasharray="4 3"/>`
+    + axisLabel(PAD.l - 8, y(100) + 4, "100", "end");
+
+  const lines = series.map((sx, si) => {
+    const isFocus = sx.handle === focus;
+    const stroke = isFocus ? "var(--gold)" : catFill(si + 1);
+    let d = "", started = false;
+    sx.points.forEach((pt, i) => {
+      if (!pt) return;
+      d += `${started ? "L" : "M"} ${x(i).toFixed(1)} ${y(pt.index).toFixed(1)} `;
+      started = true;
+    });
+    const dots = sx.points.map((pt, i) => (pt
+      ? `<circle cx="${x(i).toFixed(1)}" cy="${y(pt.index).toFixed(1)}" r="${isFocus ? 3.6 : 2.6}" fill="${stroke}">`
+        + `<title>${esc(sx.handle)}, ${esc(pt.month)}: ${fmt(pt.median)} (index ${pt.index}, ${fmt(pt.posts)} posts)</title></circle>`
+      : "")).join("");
+    return `<path d="${d.trim()}" fill="none" stroke="${stroke}" stroke-width="${isFocus ? 2.6 : 1.4}"`
+      + `${isFocus ? "" : ' opacity="0.75"'}/>${dots}`;
+  }).join("");
+
+  const every = Math.ceil(months.length / 10);
+  const ticks = months.map((m, i) => (i % every ? "" :
+    axisLabel(x(i), h - 10, m.slice(2).replace("-", "/")))).join("");
+
+  const legend = series.map((sx, si) => `<span><i style="background:${
+    sx.handle === focus ? "var(--gold)" : catFill(si + 1)}"></i>${esc(sx.handle)}${
+    sx.change == null ? "" : ` ${sx.change > 0 ? "+" : ""}${sx.change}%`}</span>`).join("");
+
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${h}" role="img" preserveAspectRatio="xMidYMid meet">`
+    + `<title>${esc(caption || "Each account indexed to its own first month")}</title>`
+    + (caption ? axisLabel(PAD.l, top - 6, caption, "start", "ax lab") : "")
+    + baseline + lines
+    + `<line x1="${PAD.l}" y1="${top + rowH}" x2="${W - PAD.r}" y2="${top + rowH}" stroke="var(--rule)"/>`
+    + ticks + `</svg><div class="legend">${legend}</div></div>`;
+}

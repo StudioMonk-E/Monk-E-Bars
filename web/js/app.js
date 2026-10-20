@@ -115,7 +115,7 @@ const S = {
   view: "session", acc: null,
   kTarget: null, kRef: "the rest",
   log: { q: "", weight: "" },
-  months: { dim: null, limitCol: "", limitVal: "", cmp: null },
+  months: { dim: null, limitCol: "", limitVal: "", cmp: null, focus: null },
   sorts: {}, dismissed: new Set(),
   account: null,      // an account's own export: follows and what it did
   gains: { window: 2, lookback: 6 },
@@ -1020,6 +1020,16 @@ function monthsView() {
     + `A monthly total cannot tell those apart, so both are drawn: the median per post is the `
     + `baseline, and the share of the month carried by its three best posts is the hit dependence.`);
 
+  // Views on Instagram and on TikTok are not the same number, and a median
+  // across both is a median of two scales. Weight classes and the hook halves
+  // already cut inside each platform; a month cannot, so it says so instead.
+  const plats = M.platformsIn(posts);
+  if (plats.length > 1 && !(st.limitCol === "platform" && st.limitVal)) {
+    h += `<div class="warn"><span>This session holds ${esc(plats.join(" and "))}. Every figure below `
+      + `pools them, and ${metricName} on one platform are not ${metricName} on the other. `
+      + `Set <b>Limit to</b> to a single platform before reading any of it.</span></div>`;
+  }
+
   if (metric === "engagement") {
     h += `<p class="plain">No post in this selection carries a view count, so everything below is `
       + `likes plus comments. Instagram captures carry no views; a CSV exported from Meta Business `
@@ -1097,6 +1107,60 @@ function monthsView() {
   }
 
   h += periodsSection(rows, limited, dim, metric, metricName);
+  h += benchmarkSection(limited, metric, metricName);
+  return h;
+}
+
+/**
+ * This account's trajectory against the others in the capture.
+ *
+ * Absolute medians cannot answer "did everyone fall": an account with four
+ * times the following has four times the views whatever happens. Each account
+ * is indexed to its own first usable month, so the lines compare shape rather
+ * than height.
+ */
+function benchmarkSection(posts, metric, metricName) {
+  const handles = [...new Set(posts.map((p) => p.author_handle).filter(Boolean))];
+  if (handles.length < 2) return "";
+
+  const { months, series } = M.byAccountMonth(posts, metric, { minPosts: 3 });
+  if (series.length < 2) {
+    return section("Against the other accounts", "Whether a fall is ours or everyone's.")
+      + `<p class="plain">Fewer than two accounts have three or more posts in at least two months, `
+      + `so there is nothing to compare yet.</p>`;
+  }
+
+  const focus = series.some((x) => x.handle === S.months.focus) ? S.months.focus : series[0].handle;
+  let h = section("Against the other accounts", `Whether a fall is ours or everyone's. Each account is `
+    + `indexed to its own first month at 100, because an account with four times the following has `
+    + `four times the ${metricName} whatever happens.`);
+
+  h += `<label class="field"><span>Our account</span><select id="m-focus">`
+    + series.map((x) => `<option value="${esc(x.handle)}"${x.handle === focus ? " selected" : ""}>`
+      + `${esc(x.handle)} (${fmt(x.posts)} posts)</option>`).join("") + `</select></label>`;
+
+  const b = M.benchmark(series, focus);
+  if (b) {
+    h += `<div class="reading"><p>${esc(b.reading)}</p><p class="plain">`
+      + `${esc(focus)} changed <b class="${b.mine < 0 ? "down" : "up"}">${b.mine > 0 ? "+" : ""}${b.mine}%</b> `
+      + `from its first month to its last; the other ${fmt(b.others)} accounts changed a median of `
+      + `<b class="${b.theirs < 0 ? "down" : "up"}">${b.theirs > 0 ? "+" : ""}${b.theirs}%</b>.</p></div>`;
+  }
+
+  h += C.indexedLines(months, series, { focus, caption: `median ${metricName}, indexed to each account's first month` });
+
+  h += table(series.map((x) => ({
+    account: x.handle, posts: x.posts, months: x.months,
+    first: x.first ? x.first.median : null, last: x.last ? x.last.median : null,
+    change: x.change,
+  })), ["account", "posts", "months", "first", "last", "change"], {
+    id: "bench", numeric: ["posts", "months", "first", "last"],
+    render: { change: (r) => (r.change == null ? "\u2013"
+      : `<b class="${r.change < 0 ? "down" : r.change > 0 ? "up" : ""}">${r.change > 0 ? "+" : ""}${r.change}%</b>`) } });
+  h += `<p class="plain">A month in which an account posted fewer than three times carries no point: `
+    + `a median over one post is noise, and a line drawn through it would show a fall nobody had. `
+    + `"First" and "last" are that account's own first and last month with enough posts, which `
+    + `need not be the same months as another's.</p>`;
   return h;
 }
 
@@ -1192,6 +1256,8 @@ function wireMonths() {
       render();
     });
   }
+  const foc = $("#m-focus");
+  if (foc) foc.addEventListener("change", (e) => { S.months.focus = e.target.value; render(); });
   const lim = $("#m-limit");
   if (lim) lim.addEventListener("change", (e) => {
     const pair = limitPairs[parseInt(e.target.value, 10)];

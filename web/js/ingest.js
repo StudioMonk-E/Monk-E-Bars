@@ -191,6 +191,9 @@ const CANDIDATES = {
   url: ["url", "link", "permalink", "post_url"],
   post_id: ["id", "post_id", "item_id", "pk", "shortcode"],
   media_urls: ["image", "image_url", "media", "media_url", "thumbnail", "display_url", "picture"],
+  // A sheet holding both platforms has to say which row is which, or every
+  // figure taken over it mixes two scales of reach.
+  platform: ["platform", "platform_name", "network", "channel", "source", "source_platform"],
 };
 const norm = (s) => String(s).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -296,8 +299,10 @@ export function parseTable(rows, source = "table", override = {}) {
     const ts = cell(row, "timestamp"); const d = ts == null || ts === "" ? null : new Date(ts);
     const media = cell(row, "media_urls"); const handle = cell(row, "author_handle"); const url = cell(row, "url");
     const pid = cell(row, "post_id");
+    const plat = cell(row, "platform");
     return withScore({
-      platform: "table",
+      // Named by the sheet where it says so; "table" only when it does not.
+      platform: plat == null || String(plat).trim() === "" ? "table" : String(plat).trim().toLowerCase(),
       post_id: pid == null || pid === "" ? `${source}:${i}` : String(pid),
       url: url == null ? "" : String(url),
       author_handle: handle == null ? "" : String(handle),

@@ -34,21 +34,34 @@ export const monthName = (key) => {
  *  a view-based reading has to fall back to likes plus comments and say so. */
 export const hasViews = (posts) => posts.some((p) => p.view_count > 0);
 
-/** Every tag column present, plus the media type the adapters already set. */
+/**
+ * Every tag column present, plus the ones the capture already carries.
+ *
+ * Platform and account are offered only when a session holds more than one,
+ * since a dimension with a single value breaks nothing down.
+ */
 export function dimensions(posts) {
   const names = new Set();
   for (const p of posts) for (const k of Object.keys(p.tags || {})) names.add(k);
   const out = [...names].sort();
   if (posts.some((p) => p.media_type && p.media_type !== "unknown")) out.unshift("media type");
+  if (new Set(posts.map((p) => p.author_handle).filter(Boolean)).size > 1) out.unshift("account");
+  if (new Set(posts.map((p) => p.platform).filter(Boolean)).size > 1) out.unshift("platform");
   return out;
 }
 
-/** One post's value on a dimension, including the built-in media type. */
+/** One post's value on a dimension, including the built-in ones. */
 export function valueOf(post, dim) {
+  if (dim === "platform") return post.platform || UNTAGGED;
+  if (dim === "account") return post.author_handle || UNTAGGED;
   if (dim === "media type") return post.media_type && post.media_type !== "unknown" ? post.media_type : UNTAGGED;
   const v = (post.tags || {})[dim];
   return v === undefined || v === "" ? UNTAGGED : String(v);
 }
+
+/** The platforms a session holds. A median taken across two of them is a
+ *  median of two different scales. */
+export const platformsIn = (posts) => [...new Set(posts.map((p) => p.platform).filter(Boolean))].sort();
 
 /** The distinct values a dimension takes, commonest first. */
 export function valuesOf(posts, dim) {
@@ -228,4 +241,76 @@ export function mixShift(a, b, dim) {
     const a_pct = Math.round(share(a, value)), b_pct = Math.round(share(b, value));
     return { value, a_pct, b_pct, change: b_pct - a_pct };
   }).sort((x, y) => Math.abs(y.change) - Math.abs(x.change));
+}
+
+// --- one account against the others --------------------------------------------
+
+/**
+ * Each account's median per month, and its trajectory indexed to its own start.
+ *
+ * The benchmark question is "did everyone fall, or only us", and absolute
+ * medians cannot answer it: an account with four times the following has four
+ * times the views whatever happens. So each account is indexed to its own
+ * first usable month at 100, which puts a small account and a large one on the
+ * same axis and compares the shape of the line rather than its height.
+ *
+ * A month where an account posted fewer than `minPosts` times carries no point
+ * at all. A median over one post is noise, and joining the line through it
+ * would draw a fall nobody had.
+ */
+export function byAccountMonth(posts, metric = "views", { minPosts = 3 } = {}) {
+  const get = metric === "views" ? (p) => p.view_count || 0 : (p) => p.engagement_score || 0;
+  const months = [...new Set(posts.filter((p) => p.timestamp).map((p) => monthKey(p.timestamp)))].sort();
+  const handles = [...new Set(posts.map((p) => p.author_handle).filter(Boolean))];
+
+  const series = handles.map((handle) => {
+    const mine = posts.filter((p) => p.author_handle === handle && p.timestamp);
+    const points = months.map((m) => {
+      const ps = mine.filter((p) => monthKey(p.timestamp) === m);
+      return ps.length >= minPosts ? { month: m, median: median(ps.map(get)), posts: ps.length } : null;
+    });
+    const seen = points.filter(Boolean);
+    const base = seen.length ? seen[0].median : 0;
+    return {
+      handle,
+      posts: mine.length,
+      months: seen.length,
+      points: points.map((pt) => (pt && base ? { ...pt, index: Math.round((pt.median / base) * 100) } : null)),
+      first: seen.length ? seen[0] : null,
+      last: seen.length ? seen[seen.length - 1] : null,
+      change: seen.length > 1 && seen[0].median
+        ? Math.round(((seen[seen.length - 1].median - seen[0].median) / seen[0].median) * 100) : null,
+    };
+  }).filter((sx) => sx.months >= 2)
+    .sort((a, b) => b.posts - a.posts);
+
+  return { months, series };
+}
+
+/**
+ * Whether a fall is this account's alone.
+ *
+ * `focus` is compared against the median change of the others rather than
+ * their mean, for the same reason every other figure here is a median: one
+ * account having a freak month should not decide what the benchmark says.
+ */
+export function benchmark(series, focus) {
+  const me = series.find((sx) => sx.handle === focus);
+  const others = series.filter((sx) => sx.handle !== focus && sx.change != null);
+  if (!me || me.change == null || others.length < 2) return null;
+  const theirs = median(others.map((sx) => sx.change));
+  const gap = me.change - theirs;
+  let reading;
+  if (me.change <= -10 && theirs <= -10) {
+    reading = gap <= -15
+      ? "Everyone fell, and this account fell further than most. Part of this is the platform and part of it is ours."
+      : "Everyone fell by about the same amount. That points at the platform rather than at the content.";
+  } else if (me.change <= -10) {
+    reading = "This account fell while the others held. That points at our own content or mix, not at the platform.";
+  } else if (theirs <= -10) {
+    reading = "The others fell and this account held.";
+  } else {
+    reading = "Nothing moved much on either side.";
+  }
+  return { mine: me.change, theirs, gap, others: others.length, reading };
 }
