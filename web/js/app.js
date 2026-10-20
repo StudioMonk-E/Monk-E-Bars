@@ -111,7 +111,7 @@ const S = {
   files: [], mapping: {},
   full: null, raw: 0, platform: "", sources: [],
   program: null, liftAuto: true, seeds: [],
-  present: [], langs: new Set(), since: "", until: "", lo: "", hi: "",
+  present: [], langs: new Set(), since: "", until: "", lo: "", hi: "", accountOnly: "",
   view: "session", acc: null,
   kTarget: null, kRef: "the rest",
   log: { q: "", weight: "" },
@@ -337,17 +337,29 @@ function hasViews() {
 function current() {
   const p = S.program;
   const key = JSON.stringify([S.version, [...S.langs].sort(), S.since, S.until,
-    p.tier_labels, p.stopwords_extra, p.query_hashtags, p.themes, p.min_views]);
+    p.tier_labels, p.stopwords_extra, p.query_hashtags, p.themes, p.min_views, S.accountOnly]);
   if (memo.key === key) return memo.value;
   const langs = [...S.langs];
-  let posts = langs.length ? filterLanguages(S.full, langs) : [];
-  posts = filterViews(filterDates(posts, S.since || null, S.until || null), p.min_views);
-  posts = weightClasses(posts, p.tier_labels);
-  let value = { posts, results: null, findings: [] };
+  let base = langs.length ? filterLanguages(S.full, langs) : [];
+  base = filterViews(filterDates(base, S.since || null, S.until || null), p.min_views);
+
+  // One capture can hold several brands. Narrowing to one is what makes the
+  // reading about that brand rather than about the set, and the tiers are cut
+  // after the narrowing so a post is ranked against its own account's posts
+  // and not against a larger account's.
+  //
+  // `everyAccount` keeps the unnarrowed set, because the benchmark is the one
+  // reading that needs the others: narrowing to our own account and then
+  // asking whether the others fell would answer itself.
+  const everyAccount = base;
+  const posts = weightClasses(
+    S.accountOnly ? base.filter((x) => x.author_handle === S.accountOnly) : base, p.tier_labels);
+  let value = { posts, everyAccount, results: null, findings: [] };
   if (posts.length) {
     const results = analyze(posts, p, SW);
     const subset = langs.length < S.present.length ? langs : null;
-    value = { posts, results, findings: generate(results.posts, p, { rawCount: S.raw, languages: subset, minViews: p.min_views }) };
+    value = { posts, everyAccount, results,
+              findings: generate(results.posts, p, { rawCount: S.raw, languages: subset, minViews: p.min_views }) };
   }
   memo = { key, value };
   return value;
@@ -505,7 +517,8 @@ function renderRackSummary() {
   const lift = p.query_hashtags.length ? `<span class="lift">${esc(p.query_hashtags.slice(0, 3).join(" "))}</span> &nbsp;/&nbsp; ` : "";
   const dates = S.lo ? `${esc(S.since)} to ${esc(S.until)} &nbsp;/&nbsp; ` : "";
   const floor = p.min_views ? `over ${fmt(p.min_views)} views &nbsp;/&nbsp; ` : "";
-  $("#rack-summary").innerHTML = `${lift}${esc(S.platform)}${S.platforms && S.platforms.length > 1 ? " (ranked apart)" : ""} &nbsp;/&nbsp; ${esc(shownLangs)} &nbsp;/&nbsp; ${dates}${floor}`
+  const who = S.accountOnly ? `<b class="who">@${esc(S.accountOnly)}</b> &nbsp;/&nbsp; ` : "";
+  $("#rack-summary").innerHTML = `${lift}${esc(S.platform)}${S.platforms && S.platforms.length > 1 ? " (ranked apart)" : ""} &nbsp;/&nbsp; ${esc(shownLangs)} &nbsp;/&nbsp; ${who}${dates}${floor}`
     + `<b>${fmt(posts.length)} of ${fmt(S.raw)} posts</b>`;
 }
 
@@ -539,6 +552,19 @@ function renderRack() {
   const mv = $("#min-views");
   mv.value = S.program.min_views || 0;
   mv.disabled = !hasViews();
+
+  // Offered only when the capture holds more than one account; a single-brand
+  // capture has nothing to narrow to.
+  const counts = new Map();
+  for (const x of S.full || []) if (x.author_handle) counts.set(x.author_handle, (counts.get(x.author_handle) || 0) + 1);
+  const accounts = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  $("#account-field").hidden = accounts.length < 2;
+  if (accounts.length >= 2) {
+    if (S.accountOnly && !counts.has(S.accountOnly)) S.accountOnly = "";
+    $("#account-only").innerHTML = `<option value="">every account (${fmt(accounts.length)})</option>`
+      + accounts.map(([h, n]) => `<option value="${esc(h)}"${h === S.accountOnly ? " selected" : ""}>`
+        + `${esc(h)} (${fmt(n)})</option>`).join("");
+  }
   $$("#lang-tools .linkish").forEach((b) => b.addEventListener("click", () => {
     const present2 = S.present.map((r) => r.language);
     if (b.dataset.langs === "all") S.langs = new Set(present2);
@@ -752,6 +778,12 @@ function render() {
   // A saved program can carry a floor into a capture that has no views to
   // test it against, and the scope summary would then name a floor that is not
   // doing anything.
+  // Several brands in one capture read as one unless the reader says which is
+  // theirs, and every figure outside the benchmark is then about the set.
+  const handles = new Set((S.full || []).map((x) => x.author_handle).filter(Boolean));
+  if (handles.size > 1 && !S.accountOnly) warn.push({ key: "pooled-accounts",
+    text: `This capture holds ${fmt(handles.size)} accounts and every figure pools them. `
+      + "Pick yours under Account in Scope: the comparison against the other accounts keeps reading all of them either way." });
   if (p.min_views && S.full.length && !hasViews()) warn.push({ key: "floor-idle", text: `The minimum of ${fmt(p.min_views)} views `
     + "is set, but no post in this session carries a view count, so nothing is being held back. Instagram captures carry no views." });
   if (S.platforms && S.platforms.length > 1) warn.push({ key: "mixed", text: `This session holds ${S.platform}. Engagement tiers `
@@ -1107,7 +1139,12 @@ function monthsView() {
   }
 
   h += periodsSection(rows, limited, dim, metric, metricName);
-  h += benchmarkSection(limited, metric, metricName);
+  // Deliberately the unnarrowed set: narrowing to our own account and then
+  // asking whether the others fell would answer itself.
+  const everyone = S.months.limitCol && S.months.limitVal
+    ? current().everyAccount.filter((x) => M.valueOf(x, S.months.limitCol) === S.months.limitVal)
+    : current().everyAccount;
+  h += benchmarkSection(everyone, metric, metricName);
   return h;
 }
 
@@ -1130,7 +1167,8 @@ function benchmarkSection(posts, metric, metricName) {
       + `so there is nothing to compare yet.</p>`;
   }
 
-  const focus = series.some((x) => x.handle === S.months.focus) ? S.months.focus : series[0].handle;
+  const focus = [S.months.focus, S.accountOnly].find((h) => series.some((x) => x.handle === h))
+    || series[0].handle;
   let h = section("Against the other accounts", `Whether a fall is ours or everyone's. Each account is `
     + `indexed to its own first month at 100, because an account with four times the following has `
     + `four times the ${metricName} whatever happens.`);
@@ -1745,6 +1783,10 @@ function wire() {
   }
   // The floor is a methodological choice, so it lives on the program and is
   // saved with it rather than being re-typed every session.
+  $("#account-only").addEventListener("change", (e) => {
+    S.accountOnly = e.target.value || "";
+    renderRack(); render();
+  });
   $("#min-views").addEventListener("change", (e) => {
     S.program.min_views = Math.max(0, parseInt(e.target.value, 10) || 0);
     e.target.value = S.program.min_views;
