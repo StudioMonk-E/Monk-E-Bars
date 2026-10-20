@@ -97,6 +97,9 @@ function normalizeProgram(d, file = "") {
     min_views: parseInt(d.min_views, 10) || 0,
     audiences: { ...(d.audiences || {}) },
     account_overrides: Object.fromEntries(Object.entries(d.account_overrides || {}).map(([k, v]) => [String(k).toLowerCase(), String(v)])),
+    // handle -> group, for reading our account against its own size of peer
+    // rather than against a median of a 113K account and a 3K one.
+    account_groups: Object.fromEntries(Object.entries(d.account_groups || {}).map(([k, v]) => [String(k).toLowerCase(), String(v)])),
   };
   const bad = p.query_hashtags.filter((t) => !t.startsWith("#"));
   if (bad.length) throw new Error(`a hashtag has to start with #: ${bad.join(", ")}`);
@@ -115,7 +118,7 @@ const S = {
   view: "session", acc: null,
   kTarget: null, kRef: "the rest",
   log: { q: "", weight: "" },
-  months: { dim: null, limitCol: "", limitVal: "", cmp: null, focus: null },
+  months: { dim: null, limitCol: "", limitVal: "", cmp: null, focus: null, metric: null },
   sorts: {}, dismissed: new Set(),
   account: null,      // an account's own export: follows and what it did
   gains: { window: 2, lookback: 6 },
@@ -443,6 +446,7 @@ const COL_LABELS = {
   follower_count: "followers", full_name: "name", detected_language: "language",
   in_better_half: "in better half", median_engagement: "median engagement",
   top3_share: "top-3 share", a_pct: "earlier", b_pct: "later", measured: "with views",
+  first: "earlier", last: "later",
 };
 const colLabel = (c) => COL_LABELS[c] || String(c).replace(/_/g, " ");
 
@@ -657,9 +661,37 @@ function renderProgram() {
       <div class="add-row"><input type="text" id="type-add" placeholder="Chocolate brand"><button class="btn small" type="button" data-add="type">Add</button></div>
       ${overrides ? `<p class="plain" style="margin-top:10px">${overrides} account${overrides > 1 ? "s" : ""} set by hand.
         <button class="linkish" type="button" id="clear-overrides">clear</button></p>` : ""}
-    </div>`;
+    </div>${groupsBlock()}`;
 
   wireProgram();
+}
+
+/**
+ * Comparison groups, assigned by hand.
+ *
+ * A set of comparison accounts is rarely of one size, and the median of a
+ * 113K account and a 3K one answers nothing. Nothing in a capture says which
+ * accounts are a brand's peers, so the reader says it, and it saves with the
+ * program like every other judgement the tool cannot make for itself.
+ */
+function groupsBlock() {
+  const p = S.program;
+  const counts = new Map();
+  for (const x of S.full || []) if (x.author_handle) counts.set(x.author_handle, (counts.get(x.author_handle) || 0) + 1);
+  if (counts.size < 2) return "";
+  const accounts = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const used = [...new Set(Object.values(p.account_groups || {}).filter(Boolean))].sort();
+  return `<div class="block">
+      <div class="gym">Comparison groups</div>
+      <p class="plain">Which accounts are a fair comparison for which. The benchmark reads ours against its
+        own group, so a large account does not sit in the same median as a small one. Leave blank to keep an
+        account out of every group.</p>
+      ${accounts.map(([h, n]) => `<label class="field group-row">
+        <span>${esc(h)} <small>${fmt(n)} posts</small></span>
+        <input type="text" list="group-names" data-group="${esc(h)}" value="${esc((p.account_groups || {})[h] || "")}"
+          placeholder="peers"></label>`).join("")}
+      <datalist id="group-names">${used.map((g) => `<option value="${esc(g)}"></option>`).join("")}</datalist>
+    </div>`;
 }
 
 function wireProgram() {
@@ -760,6 +792,12 @@ function wireProgram() {
     p.account_types = rest; programChanged();
   }));
   $("#clear-overrides", body)?.addEventListener("click", () => { p.account_overrides = {}; programChanged(); });
+  $$("[data-group]", body).forEach((el) => el.addEventListener("change", () => {
+    const g = el.value.trim();
+    if (g) p.account_groups[el.dataset.group] = g;
+    else delete p.account_groups[el.dataset.group];
+    remember(); render();
+  }));
 }
 
 // --- views -------------------------------------------------------------------
@@ -1045,7 +1083,11 @@ function monthsView() {
   const { posts } = current();
   const st = S.months;
 
-  const metric = M.hasViews(posts) ? "views" : "engagement";
+  // Views where the capture carries them, likes plus comments where it does
+  // not -- but a reader can force either, because the honest comparison
+  // between two platforms is often the metric both of them have.
+  const canViews = M.hasViews(posts);
+  const metric = !canViews ? "engagement" : (st.metric || "views");
   const metricName = metric === "views" ? "views" : "likes plus comments";
 
   let h = section("Months", `Is the ordinary post doing less, or have the hits stopped? `
@@ -1102,6 +1144,13 @@ function monthsView() {
       + `<label class="field"><span>Break down by</span><select id="m-dim">`
       + dims.map((d) => `<option${st.dim === d ? " selected" : ""}>${esc(d)}</option>`).join("")
       + `</select></label></div>`;
+  }
+  if (canViews) {
+    h += `<label class="field narrow"><span>Measure on</span><select id="m-metric">`
+      + `<option value="views"${metric === "views" ? " selected" : ""}>views</option>`
+      + `<option value="engagement"${metric === "engagement" ? " selected" : ""}>likes plus comments</option>`
+      + `</select><small class="plain">TikTok reports views and an Instagram capture often does not, so `
+      + `likes plus comments is the measure the two platforms share.</small></label>`;
   }
 
   const { rows, undated } = M.byMonth(limited, metric);
@@ -1179,7 +1228,12 @@ function benchmarkSection(posts, metric, metricName) {
   const handles = [...new Set(posts.map((p) => p.author_handle).filter(Boolean))];
   if (handles.length < 2) return "";
 
-  const { months, series } = M.byAccountMonth(posts, metric, { minPosts: 3 });
+  // The same two periods the comparison above uses, so one page tells one
+  // story, and so an account's change is a stretch of months rather than its
+  // first month against its last.
+  const spanRows = M.byMonth(posts, metric).rows;
+  const periods = S.months.cmp || M.defaultPeriods(spanRows);
+  const { months, series } = M.byAccountMonth(posts, metric, { minPosts: 3, periods });
   if (series.length < 2) {
     return section("Against the other accounts", "Whether a fall is ours or everyone's.")
       + `<p class="plain">Fewer than two accounts have three or more posts in at least two months, `
@@ -1199,28 +1253,41 @@ function benchmarkSection(posts, metric, metricName) {
     + series.map((x) => `<option value="${esc(x.handle)}"${x.handle === focus ? " selected" : ""}>`
       + `${esc(x.handle)} (${fmt(x.posts)} posts)</option>`).join("") + `</select></label>`;
 
-  const b = M.benchmark(series, focus);
+  const span = periods
+    ? `${esc(M.monthName(periods.aFrom))}\u2013${esc(M.monthName(periods.aTo))} against `
+      + `${esc(M.monthName(periods.bFrom))}\u2013${esc(M.monthName(periods.bTo))}`
+    : "its first month against its last";
+  const b = M.benchmark(series, focus, S.program.account_groups || {});
   if (b) {
+    const pc = (v) => `<b class="${v < 0 ? "down" : v > 0 ? "up" : ""}">${v > 0 ? "+" : ""}${v}%</b>`;
     h += `<div class="reading"><p>${esc(b.reading)}</p><p class="plain">`
-      + `${esc(focus)} changed <b class="${b.mine < 0 ? "down" : "up"}">${b.mine > 0 ? "+" : ""}${b.mine}%</b> `
-      + `from its first month to its last; the other ${fmt(b.others)} accounts changed a median of `
-      + `<b class="${b.theirs < 0 ? "down" : "up"}">${b.theirs > 0 ? "+" : ""}${b.theirs}%</b>.</p></div>`;
+      + `Over ${span}, ${esc(focus)} changed ${pc(b.mine)}; `
+      + `${b.comparedWith === "every other account" ? `the other ${fmt(b.others)} accounts`
+          : `the ${fmt(b.others)} accounts grouped as <b>${esc(b.comparedWith)}</b>`} `
+      + `changed a median of ${pc(b.theirs)}.</p></div>`;
+    if (b.byGroup.length > 1 || (b.byGroup.length === 1 && b.byGroup[0].name !== M.UNGROUPED)) {
+      h += `<span class="label">each group's median change</span>`;
+      h += table(b.byGroup, ["name", "accounts", "change"], { id: "bgroups", numeric: ["accounts"],
+        render: { change: (r) => pc(r.change) } });
+    }
   }
 
   h += C.indexedLines(months, series, { focus, caption: `median ${metricName}, indexed to each account's first month` });
 
   h += table(series.map((x) => ({
-    account: x.handle, posts: x.posts, months: x.months,
+    account: x.handle, group: (S.program.account_groups || {})[x.handle] || "\u2013",
+    posts: x.posts, months: x.months,
     first: x.first ? x.first.median : null, last: x.last ? x.last.median : null,
     change: x.change,
-  })), ["account", "posts", "months", "first", "last", "change"], {
+  })), ["account", "group", "posts", "months", "first", "last", "change"], {
     id: "bench", numeric: ["posts", "months", "first", "last"],
     render: { change: (r) => (r.change == null ? "\u2013"
       : `<b class="${r.change < 0 ? "down" : r.change > 0 ? "up" : ""}">${r.change > 0 ? "+" : ""}${r.change}%</b>`) } });
   h += `<p class="plain">A month in which an account posted fewer than three times carries no point: `
     + `a median over one post is noise, and a line drawn through it would show a fall nobody had. `
-    + `"First" and "last" are that account's own first and last month with enough posts, which `
-    + `need not be the same months as another's.</p>`;
+    + `${periods ? `"Earlier" and "later" are that account's median over ${span}, and an account with `
+        + `too few posts in either stretch has no change at all.`
+      : `"Earlier" and "later" are that account's own first and last month with enough posts.`}</p>`;
   return h;
 }
 
@@ -1340,6 +1407,8 @@ function wireMonths() {
       render();
     });
   }
+  const met = $("#m-metric");
+  if (met) met.addEventListener("change", (e) => { S.months.metric = e.target.value; render(); });
   const foc = $("#m-focus");
   if (foc) foc.addEventListener("change", (e) => { S.months.focus = e.target.value; render(); });
   const lim = $("#m-limit");

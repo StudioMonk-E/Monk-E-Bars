@@ -235,6 +235,12 @@ input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 28px; 
    so it is clear the tool is reading its own figures, not adding anything. */
 .n-sm { color: var(--ink-35); font-size: 11px; }
 
+/* One account per row: the handle, and the group it belongs to. */
+.group-row { display: grid; grid-template-columns: minmax(0, 1fr) 10rem; gap: 10px; align-items: center; margin-top: 8px; }
+.group-row > span { margin-bottom: 0; overflow: hidden; text-overflow: ellipsis; }
+.group-row small { color: var(--ink-35); }
+.group-row input { min-height: 36px; }
+
 /* Two month pickers on one line, with the word between them. */
 /* Beats `.field > span`, which blocks every label in a field. */
 .field > span.range { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }

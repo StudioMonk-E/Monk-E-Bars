@@ -615,6 +615,71 @@ test("an account with only one usable month is left out of the comparison", () =
   assert.deepEqual(MO.byAccountMonth(posts).series.map((x) => x.handle), ["pair"]);
 });
 
+test("an account's change is read over a period, not between two end months", () => {
+  const mk = (handle, month, views) => monthOf(month, views, { author_handle: handle });
+  // A steady account with one freak month at each end. First-versus-last would
+  // call this a collapse; over a period it is flat.
+  const posts = [
+    ...mk("a", 2, [10_000, 10_000, 10_000]),            // freak high first month
+    ...mk("a", 3, [1000, 1000, 1000]), ...mk("a", 4, [1000, 1000, 1000]),
+    ...mk("a", 8, [1000, 1000, 1000]), ...mk("a", 9, [1000, 1000, 1000]),
+    ...mk("a", 10, [100, 100, 100]),                     // freak low last month
+    ...mk("b", 2, [500, 500, 500]), ...mk("b", 10, [500, 500, 500]),
+  ];
+  const ends = MO.byAccountMonth(posts).series.find((x) => x.handle === "a");
+  assert.equal(ends.change, -99);                        // 10,000 -> 100
+
+  const over = MO.byAccountMonth(posts, "views", { minPosts: 3,
+    periods: { aFrom: "2026-03", aTo: "2026-04", bFrom: "2026-08", bTo: "2026-09" } }).series
+    .find((x) => x.handle === "a");
+  assert.equal(over.change, 0);                          // 1000 -> 1000
+});
+
+test("an account with too few posts inside a period has no change at all", () => {
+  const posts = [
+    ...monthOf(3, [100, 100, 100], { author_handle: "a" }),
+    ...monthOf(9, [50, 50, 50], { author_handle: "a" }),
+    // b never posted inside either period.
+    ...monthOf(5, [100, 100, 100], { author_handle: "b" }),
+    ...monthOf(6, [100, 100, 100], { author_handle: "b" }),
+  ];
+  const periods = { aFrom: "2026-03", aTo: "2026-03", bFrom: "2026-09", bTo: "2026-09" };
+  const series = MO.byAccountMonth(posts, "views", { minPosts: 3, periods }).series;
+  assert.equal(series.find((x) => x.handle === "a").change, -50);
+  assert.equal(series.find((x) => x.handle === "b").change, null);
+});
+
+test("ours is read against its own group, and says so when a group is too small", () => {
+  const mk = (handle, from, to) => [
+    ...monthOf(2, [from, from, from], { author_handle: handle }),
+    ...monthOf(6, [to, to, to], { author_handle: handle }),
+  ];
+  const series = MO.byAccountMonth([
+    ...mk("us", 100, 50), ...mk("peer1", 100, 90), ...mk("peer2", 100, 92),
+    ...mk("big1", 100, 10), ...mk("big2", 100, 12),
+  ]).series;
+  const groups = { us: "peers", peer1: "peers", peer2: "peers", big1: "large", big2: "large" };
+
+  const b = MO.benchmark(series, "us", groups);
+  assert.equal(b.comparedWith, "peers");
+  assert.equal(b.others, 2);
+  assert.equal(b.theirs, -9);                   // our peers, not the large pair
+  assert.deepEqual(b.byGroup.map((g) => g.name).sort(), ["large", "peers"]);
+  assert.equal(b.byGroup.find((g) => g.name === "large").change, -89);
+
+  // Without groups it is every other account, and the median is dragged down.
+  const flat = MO.benchmark(series, "us", {});
+  assert.equal(flat.comparedWith, "every other account");
+  assert.equal(flat.others, 4);
+  assert.ok(flat.theirs < b.theirs);
+
+  // A group with only one other member cannot carry a median, and it falls back.
+  const thin = MO.benchmark(series, "us", { us: "peers", peer1: "peers" });
+  assert.equal(thin.comparedWith, "every other account");
+  // Accounts in no group are still reported, under their own heading.
+  assert.ok(thin.byGroup.some((g) => g.name === MO.UNGROUPED));
+});
+
 test("the benchmark reads our change against the median of the others", () => {
   const mk = (handle, from, to) => [
     ...monthOf(2, [from, from, from], { author_handle: handle }),

@@ -16,6 +16,7 @@
 // mean up by itself, which is the very thing being measured.
 
 export const UNTAGGED = "untagged";
+export const UNGROUPED = "ungrouped";
 
 export function median(xs) {
   if (!xs.length) return 0;
@@ -308,7 +309,7 @@ export function mixShift(a, b, dim) {
  * at all. A median over one post is noise, and joining the line through it
  * would draw a fall nobody had.
  */
-export function byAccountMonth(posts, metric = "views", { minPosts = 3 } = {}) {
+export function byAccountMonth(posts, metric = "views", { minPosts = 3, periods = null } = {}) {
   const get = valueOfMetric(metric);
   const months = [...new Set(posts.filter((p) => p.timestamp).map((p) => monthKey(p.timestamp)))].sort();
   const handles = [...new Set(posts.map((p) => p.author_handle).filter(Boolean))];
@@ -323,15 +324,30 @@ export function byAccountMonth(posts, metric = "views", { minPosts = 3 } = {}) {
     });
     const seen = points.filter(Boolean);
     const base = seen.length ? seen[0].median : 0;
+
+    // An account's change over a stretch of months rather than between its
+    // first month and its last. One freak month at either end decided the
+    // whole figure before, which is the thing a benchmark can least afford:
+    // it is the number that says whether a fall is ours or everyone's.
+    const over = (from, to) => {
+      const read = measured(mine.filter((p) => {
+        const k = monthKey(p.timestamp);
+        return k >= from && k <= to;
+      }), metric);
+      return read.length >= minPosts ? median(read.map(get)) : null;
+    };
+    const early = periods ? over(periods.aFrom, periods.aTo) : (seen.length ? seen[0].median : null);
+    const late = periods ? over(periods.bFrom, periods.bTo) : (seen.length ? seen[seen.length - 1].median : null);
+
     return {
       handle,
       posts: mine.length,
       months: seen.length,
       points: points.map((pt) => (pt && base ? { ...pt, index: Math.round((pt.median / base) * 100) } : null)),
-      first: seen.length ? seen[0] : null,
-      last: seen.length ? seen[seen.length - 1] : null,
-      change: seen.length > 1 && seen[0].median
-        ? Math.round(((seen[seen.length - 1].median - seen[0].median) / seen[0].median) * 100) : null,
+      first: periods ? (early == null ? null : { median: early }) : (seen.length ? seen[0] : null),
+      last: periods ? (late == null ? null : { median: late }) : (seen.length ? seen[seen.length - 1] : null),
+      change: early != null && late != null && early
+        ? Math.round(((late - early) / early) * 100) : null,
     };
   }).filter((sx) => sx.months >= 2)
     .sort((a, b) => b.posts - a.posts);
@@ -346,11 +362,30 @@ export function byAccountMonth(posts, metric = "views", { minPosts = 3 } = {}) {
  * their mean, for the same reason every other figure here is a median: one
  * account having a freak month should not decide what the benchmark says.
  */
-export function benchmark(series, focus) {
+export function benchmark(series, focus, groups = {}) {
   const me = series.find((sx) => sx.handle === focus);
   const others = series.filter((sx) => sx.handle !== focus && sx.change != null);
   if (!me || me.change == null || others.length < 2) return null;
-  const theirs = median(others.map((sx) => sx.change));
+
+  // A set of comparison accounts is rarely of one size, and the median of a
+  // 113K account and a 3K one answers nothing. Where the reader has grouped
+  // them, ours is read against its own group; where a group is too small to
+  // carry a median, it falls back to all the others and says which it used.
+  const groupOf = (h) => groups[h] || null;
+  const mine_group = groupOf(focus);
+  const peers = mine_group ? others.filter((sx) => groupOf(sx.handle) === mine_group) : [];
+  const against = peers.length >= 2 ? peers : others;
+  const comparedWith = peers.length >= 2 ? mine_group : "every other account";
+
+  const names = [...new Set(others.map((sx) => groupOf(sx.handle)).filter(Boolean))].sort();
+  const byGroup = names.map((name) => {
+    const members = others.filter((sx) => groupOf(sx.handle) === name);
+    return { name, accounts: members.length, change: median(members.map((sx) => sx.change)) };
+  });
+  const loose = others.filter((sx) => !groupOf(sx.handle));
+  if (loose.length) byGroup.push({ name: UNGROUPED, accounts: loose.length, change: median(loose.map((sx) => sx.change)) });
+
+  const theirs = median(against.map((sx) => sx.change));
   const gap = me.change - theirs;
   let reading;
   if (me.change <= -10 && theirs <= -10) {
@@ -364,5 +399,5 @@ export function benchmark(series, focus) {
   } else {
     reading = "Nothing moved much on either side.";
   }
-  return { mine: me.change, theirs, gap, others: others.length, reading };
+  return { mine: me.change, theirs, gap, others: against.length, comparedWith, byGroup, reading };
 }
