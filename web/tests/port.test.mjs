@@ -358,6 +358,34 @@ const mPost = (iso, views, extra = {}) => ({
 const monthOf = (m, views, extra) => views.map((v, i) =>
   mPost(`2026-${String(m).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}T12:00:00Z`, v, extra));
 
+test("a count is read in either convention, including the Dutch one", () => {
+  // The reverse of the English convention, and an export made on a Dutch
+  // machine writes it. Read the English way, 1.204 became 1, silently.
+  assert.equal(toInt("1.204"), 1204);          // NL thousands
+  assert.equal(toInt("1.234.567"), 1234567);
+  assert.equal(toInt("1,204"), 1204);          // en thousands
+  assert.equal(toInt("1,234,567"), 1234567);
+  // A K or M suffix makes the single separator a decimal point in both.
+  assert.equal(toInt("1,2K"), 1200);
+  assert.equal(toInt("1.2K"), 1200);
+  assert.equal(toInt("2,5M"), 2_500_000);
+  // Both separators present: the last one is the decimal point.
+  assert.equal(toInt("1.234,56"), 1234);
+  assert.equal(toInt("1,234.56"), 1234);
+  // One separator with fewer than three digits after it is a decimal point.
+  assert.equal(toInt("0,75"), 0);
+  assert.equal(toInt("12,50"), 12);
+  assert.equal(toInt("1.5"), 1);
+  // Digits grouped by spaces, including the non-breaking kinds.
+  assert.equal(toInt("1 204"), 1204);
+  assert.equal(toInt("1\u00a0204"), 1204);
+  // Unchanged behaviour at the edges.
+  assert.equal(toInt(""), 0);
+  assert.equal(toInt("n/a"), 0);
+  assert.equal(toInt(1204), 1204);
+  assert.equal(toInt(-42), -42);
+});
+
 test("a spreadsheet keeps the columns the mapping did not claim", () => {
   const rows = [{ caption: "hoi", views: "1,204", date: "2026-09-01", formaat: " video met mensen ", geboost: "nee", leeg: "" }];
   const [post] = parseTable(rows, "sheet");

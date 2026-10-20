@@ -107,17 +107,50 @@ def _to_int(v) -> int:
             return 0
     except Exception:
         pass
-    # Tolerate "1,234" and "1.2K" style counts found in exported sheets.
-    s = str(v).strip().replace(",", "")
-    m = re.match(r"^([\d.]+)\s*([kKmM])$", s)
-    if m:
-        mult = 1_000 if m.group(2).lower() == "k" else 1_000_000
-        try:
-            return int(float(m.group(1)) * mult)
-        except ValueError:
-            return 0
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return int(v)
+
+    # Counts as exports write them, in either convention. An export made on a
+    # Dutch machine writes 1.204 for one thousand two hundred and four, and
+    # 1,2K for twelve hundred -- the reverse of the English convention. Read
+    # the English way, 1.204 became 1, and silently: a median built on it looks
+    # reasonable and is wrong by three orders of magnitude.
+    #
+    # Worked out per value, because one sheet can hold both:
+    #   both separators present   the last one is the decimal point
+    #   one separator, repeated   it groups digits        (1.234.567)
+    #   one separator, once       a K or M suffix makes it a decimal point;
+    #                             otherwise exactly three digits after it means
+    #                             thousands, anything else a decimal point
+    #
+    # A bare "1.000" stays ambiguous and is read as a thousand: these columns
+    # hold view and like counts, where a trailing ".000" is a separator far
+    # more often than three decimal places.
+    s = re.sub(r"[\s\u00a0\u202f\u2009]", "", str(v).strip())
+    if not s:
+        return 0
+
+    mult = 1
+    suffix = re.search(r"([kKmM])$", s)
+    if suffix:
+        mult = 1_000 if suffix.group(1).lower() == "k" else 1_000_000
+        s = s[:-1]
+
+    dot, comma = s.rfind("."), s.rfind(",")
+    if dot != -1 and comma != -1:
+        dec, group = (".", ",") if dot > comma else (",", ".")
+        s = s.replace(group, "").replace(dec, ".")
+    elif dot != -1 or comma != -1:
+        sep = "." if dot != -1 else ","
+        parts = s.split(sep)
+        tail = parts[-1]
+        thousands = len(parts) > 2 or (
+            suffix is None and len(tail) == 3 and len(parts[0]) > 0 and tail.isdigit()
+        )
+        s = "".join(parts) if thousands else "".join(parts[:-1]) + "." + tail
+
     try:
-        return int(float(s))
+        return int(float(s) * mult)
     except ValueError:
         return 0
 

@@ -215,14 +215,62 @@ export function guessMapping(columns) {
   return mapping;
 }
 
-/** Counts as exports write them: "1,204", "2.1K", "3M". */
+/**
+ * Counts as exports write them, in either convention.
+ *
+ * An export made on a Dutch machine writes 1.204 for one thousand two hundred
+ * and four, and 1,2K for twelve hundred -- the exact reverse of the English
+ * convention. Reading those the English way turned 1.204 into 1 and 1,2K into
+ * twelve thousand, and did it silently, which is the dangerous part: a median
+ * built on it looks perfectly reasonable and is wrong by three orders of
+ * magnitude.
+ *
+ * The convention is worked out per value rather than guessed once for the
+ * file, because a sheet can hold both:
+ *
+ *   both separators present  the last one is the decimal point
+ *   one separator, repeated  it is a thousands separator  (1.234.567)
+ *   one separator, once      a K or M suffix makes it a decimal point (1,2K);
+ *                            otherwise exactly three digits after it means
+ *                            thousands (1.204), and anything else a decimal
+ *                            point (0,75)
+ *
+ * The one case that stays ambiguous is a bare "1.000", which is a thousand to
+ * a Dutch exporter and one to an English one. It is read as a thousand: these
+ * columns hold view and like counts, where a trailing ".000" is a separator
+ * far more often than it is three decimal places.
+ */
 export function toInt(v) {
   if (v === null || v === undefined || v === "") return 0;
-  const s = String(v).trim().replace(/,/g, "");
-  const m = s.match(/^([\d.]+)\s*([kKmM])$/);
-  if (m) { const x = parseFloat(m[1]); return Number.isFinite(x) ? Math.trunc(x * (/k/i.test(m[2]) ? 1e3 : 1e6)) : 0; }
+  if (typeof v === "number") return Number.isFinite(v) ? Math.trunc(v) : 0;
+  // Spaces group digits in several locales, including the non-breaking kinds
+  // a spreadsheet emits.
+  let s = String(v).trim().replace(/[\s\u00a0\u202f\u2009]/g, "");
+  if (!s) return 0;
+
+  let mult = 1;
+  const suffix = s.match(/([kKmM])$/);
+  if (suffix) {
+    mult = /k/i.test(suffix[1]) ? 1e3 : 1e6;
+    s = s.slice(0, -1);
+  }
+
+  const dot = s.lastIndexOf("."), comma = s.lastIndexOf(",");
+  if (dot !== -1 && comma !== -1) {
+    // Whichever comes last is the decimal point; the other groups digits.
+    const [dec, group] = dot > comma ? [".", ","] : [",", "."];
+    s = s.split(group).join("").replace(dec, ".");
+  } else if (dot !== -1 || comma !== -1) {
+    const sep = dot !== -1 ? "." : ",";
+    const parts = s.split(sep);
+    const tail = parts[parts.length - 1];
+    const thousands = parts.length > 2
+      || (!suffix && tail.length === 3 && parts[0].length > 0 && /^\d+$/.test(tail));
+    s = thousands ? parts.join("") : parts.slice(0, -1).join("") + "." + tail;
+  }
+
   const n = parseFloat(s);
-  return Number.isFinite(n) ? Math.trunc(n) : 0;
+  return Number.isFinite(n) ? Math.trunc(n * mult) : 0;
 }
 
 /**

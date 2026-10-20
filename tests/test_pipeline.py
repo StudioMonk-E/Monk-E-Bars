@@ -11,6 +11,7 @@ import math
 from monke_bars.config import Config
 from monke_bars.corpus import assign_tiers, build_corpus, filter_views
 from monke_bars.ingest import get_adapter, load_posts
+from monke_bars.ingest.tabular import _to_int
 from monke_bars.ingest.base import PostRecord
 from monke_bars import lexical, text
 
@@ -75,6 +76,24 @@ def test_build_corpus_dedup_and_tier():
     # highest engagement ranked first
     assert corpus.iloc[0]["post_id"] == "1"
     assert set(corpus["engagement_tier"]) <= {"High", "Medium", "Low"}
+
+
+def test_counts_are_read_in_either_convention():
+    """A Dutch export writes 1.204 for 1204; read as English it became 1."""
+    assert _to_int("1.204") == 1204          # NL thousands
+    assert _to_int("1.234.567") == 1_234_567
+    assert _to_int("1,204") == 1204          # EN thousands
+    assert _to_int("1,2K") == 1200           # suffix makes it a decimal point
+    assert _to_int("1.2K") == 1200
+    assert _to_int("2,5M") == 2_500_000
+    assert _to_int("1.234,56") == 1234       # last separator is the decimal
+    assert _to_int("1,234.56") == 1234
+    assert _to_int("0,75") == 0              # under three digits: a decimal
+    assert _to_int("1 204") == 1204
+    assert _to_int("1\u00a0204") == 1204
+    assert _to_int("") == 0
+    assert _to_int("n/a") == 0
+    assert _to_int(1204) == 1204
 
 
 def test_view_floor_drops_thin_posts_but_keeps_unknown_counts():
